@@ -58,7 +58,7 @@
         ],
         "isolatedConfig": true,
         "webpackConfig": "apps/backend/webpack.config.js",
-        "externalDependencies": "none",
+        "externalDependencies": "all",
         "transformers": [
           {
             "name": "@nestjs/swagger/plugin",

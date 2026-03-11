@@ -50,6 +50,9 @@ const AppDataSource = new DataSource({
   migrations: ['apps/backend/src/migrations/*.ts'],
   // Setting synchronize: true shouldn't be used in production - otherwise you can lose production data
   synchronize: false,
+  ssl: {
+    rejectUnauthorized: false, // temp for testing
+  },
   namingStrategy: new PluralNamingStrategy(),
 });
 

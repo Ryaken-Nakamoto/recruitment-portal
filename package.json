@@ -18,10 +18,10 @@
     "test": "jest",
     "build:lambda": "npx nx run backend:build-lambda --configuration production",
     "zip:lambda": "zip -r lambda.zip dist/apps/backend/ -x '*.map'",
-    "upload:lambda": "aws s3 cp lambda.zip s3://YOUR_LAMBDA_S3_BUCKET/lambda.zip --region us-east-1",
-    "deploy:backend": "yarn build:lambda && yarn zip:lambda && yarn upload:lambda && aws lambda update-function-code --function-name YOUR_LAMBDA_FUNCTION_NAME --s3-bucket YOUR_LAMBDA_S3_BUCKET --s3-key lambda.zip --region us-east-1",
+    "upload:lambda": "aws s3 cp lambda.zip s3://$AWS_LAMBDA_BUCKET/lambda.zip --region us-east-1",
+    "deploy:backend": "yarn build:lambda && yarn zip:lambda && yarn upload:lambda && aws lambda update-function-code --function-name $AWS_LAMBDA_FUNCTION_NAME --s3-bucket $AWS_LAMBDA_BUCKET --s3-key lambda.zip --region us-east-1",
     "build:frontend": "npx nx run frontend:build --configuration production",
-    "deploy:frontend": "yarn build:frontend && aws s3 sync dist/apps/frontend/ s3://YOUR_FRONTEND_S3_BUCKET --delete --region us-east-1"
+    "deploy:frontend": "yarn build:frontend && aws s3 sync dist/apps/frontend/ s3://$AWS_FRONTEND_BUCKET --delete --region us-east-1"
   },
   "private": true,
   "dependencies": {
