@@ -14,7 +14,14 @@
         "outputPath": "dist/apps/backend",
         "main": "apps/backend/src/main.ts",
         "tsConfig": "apps/backend/tsconfig.app.json",
-        "assets": ["apps/backend/src/assets"],
+        "assets": [
+          "apps/backend/src/assets",
+          {
+            "input": "apps/backend/src/seed",
+            "glob": "rubric-seed.json",
+            "output": "."
+          }
+        ],
         "isolatedConfig": true,
         "webpackConfig": "apps/backend/webpack.config.js",
         "transformers": [
@@ -28,6 +35,40 @@
       },
       "configurations": {
         "development": {},
+        "production": {}
+      }
+    },
+    "build-lambda": {
+      "executor": "@nx/webpack:webpack",
+      "outputs": ["{options.outputPath}"],
+      "defaultConfiguration": "production",
+      "options": {
+        "target": "node",
+        "compiler": "tsc",
+        "outputPath": "dist/apps/backend",
+        "main": "apps/backend/src/lambda.ts",
+        "tsConfig": "apps/backend/tsconfig.app.json",
+        "assets": [
+          "apps/backend/src/assets",
+          {
+            "input": "apps/backend/src/seed",
+            "glob": "rubric-seed.json",
+            "output": "."
+          }
+        ],
+        "isolatedConfig": true,
+        "webpackConfig": "apps/backend/webpack.config.js",
+        "externalDependencies": "none",
+        "transformers": [
+          {
+            "name": "@nestjs/swagger/plugin",
+            "options": {
+              "introspectComments": true
+            }
+          }
+        ]
+      },
+      "configurations": {
         "production": {}
       }
     },

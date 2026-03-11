@@ -10,8 +10,8 @@ export class PluralNamingStrategy
 
   columnName(
     propertyName: string,
-    customName: string,
-    embeddedPrefixes: string[],
+    _customName: string,
+    _embeddedPrefixes: string[],
   ): string {
     return propertyName;
   }

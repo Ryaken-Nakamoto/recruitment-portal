@@ -31,13 +31,14 @@ export default defineConfig({
     },
     environment: 'jsdom',
     include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
+    setupFiles: ['./src/test-setup.ts'],
   },
 
   resolve: {
     alias: {
       '@api': path.resolve(__dirname, './src/api'),
       '@components': path.resolve(__dirname, './src/components'),
-      '@containers': path.resolve(__dirname, './src/containers'),
+      '@pages': path.resolve(__dirname, './src/pages'),
       '@public': path.resolve(__dirname, './public'),
       '@shared': path.resolve(__dirname, '../../shared'),
       '@utils': path.resolve(__dirname, './src/utils'),

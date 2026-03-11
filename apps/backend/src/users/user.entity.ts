@@ -1,14 +1,19 @@
-import { Entity, Column, ObjectIdColumn, ObjectId } from 'typeorm';
-
-import type { Status } from './types';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  TableInheritance,
+  CreateDateColumn,
+} from 'typeorm';
+import { IsEmail, IsEnum } from 'class-validator';
+import { Role } from './role';
+import { AccountStatus } from './status';
 
 @Entity()
+@TableInheritance({ column: { type: 'varchar', name: 'role' } })
 export class User {
-  @Column({ primary: true })
+  @PrimaryGeneratedColumn()
   id: number;
-
-  @Column()
-  status: Status;
 
   @Column()
   firstName: string;
@@ -16,6 +21,18 @@ export class User {
   @Column()
   lastName: string;
 
+  @IsEmail()
   @Column()
   email: string;
+
+  @Column({ type: 'varchar' })
+  @IsEnum(Role)
+  role: Role;
+
+  @Column({ type: 'varchar' })
+  @IsEnum(AccountStatus)
+  accountStatus: AccountStatus;
+
+  @CreateDateColumn()
+  createdDate: Date;
 }

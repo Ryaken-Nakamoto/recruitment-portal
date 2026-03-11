@@ -15,11 +15,21 @@
     "migration:run": "npm run typeorm -- migration:run -d apps/backend/src/data-source.ts",
     "migration:revert": "npm run typeorm -- migration:revert -d apps/backend/src/data-source.ts",
     "migration:create": "npm run typeorm -- migration:create apps/backend/src/migrations/$npm_config_name",
-    "test": "jest"
+    "test": "jest",
+    "build:lambda": "npx nx run backend:build-lambda --configuration production",
+    "zip:lambda": "zip -r lambda.zip dist/apps/backend/ -x '*.map'",
+    "upload:lambda": "aws s3 cp lambda.zip s3://YOUR_LAMBDA_S3_BUCKET/lambda.zip --region us-east-1",
+    "deploy:backend": "yarn build:lambda && yarn zip:lambda && yarn upload:lambda && aws lambda update-function-code --function-name YOUR_LAMBDA_FUNCTION_NAME --s3-bucket YOUR_LAMBDA_S3_BUCKET --s3-key lambda.zip --region us-east-1",
+    "build:frontend": "npx nx run frontend:build --configuration production",
+    "deploy:frontend": "yarn build:frontend && aws s3 sync dist/apps/frontend/ s3://YOUR_FRONTEND_S3_BUCKET --delete --region us-east-1"
   },
   "private": true,
   "dependencies": {
-    "@aws-sdk/client-cognito-identity-provider": "^3.410.0",
+    "@aws-amplify/ui-react": "^6.15.0",
+    "@aws-sdk/client-cognito-identity-provider": "3.410.0",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/material": "^7.3.8",
     "@nestjs/cli": "^10.1.17",
     "@nestjs/common": "^10.0.2",
     "@nestjs/core": "^10.0.2",
@@ -27,8 +37,12 @@
     "@nestjs/platform-express": "^10.0.2",
     "@nestjs/swagger": "^7.1.12",
     "@nestjs/typeorm": "^10.0.0",
+    "@tanstack/react-query": "^5.90.21",
     "@types/pg": "^8.15.5",
+    "@vendia/serverless-express": "^4.12.6",
     "amazon-cognito-identity-js": "^6.3.5",
+    "aws-amplify": "^6.16.2",
+    "aws-jwt-verify": "^5.1.1",
     "axios": "^1.5.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
@@ -58,6 +72,7 @@
     "@nx/vite": "^16.8.1",
     "@nx/webpack": "^16.8.1",
     "@testing-library/react": "^14.0.0",
+    "@types/aws-lambda": "^8.10.161",
     "@types/jest": "^29.4.0",
     "@types/node": "^18.14.2",
     "@types/react": "^18.2.14",
@@ -85,5 +100,6 @@
     "typescript": "^5.1.3",
     "vite": "^4.3.9",
     "vitest": "^0.32.0"
-  }
+  },
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }

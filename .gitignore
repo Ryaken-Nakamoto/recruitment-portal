@@ -42,3 +42,9 @@ Thumbs.db
 *.env
 *.env.*
 !example.env
+
+# Rubric seed data (kept off git to prevent applicants from seeing scoring criteria)
+apps/backend/src/seed/rubric-seed.json
+
+# Source-of-truth documents (internal only)
+source-of-truth/

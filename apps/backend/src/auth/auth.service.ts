@@ -1,179 +1,68 @@
-import { Injectable } from '@nestjs/common';
-import {
-  AdminDeleteUserCommand,
-  AdminInitiateAuthCommand,
-  AttributeType,
-  CognitoIdentityProviderClient,
-  ConfirmForgotPasswordCommand,
-  ConfirmSignUpCommand,
-  ForgotPasswordCommand,
-  ListUsersCommand,
-  SignUpCommand,
-} from '@aws-sdk/client-cognito-identity-provider';
-
-import CognitoAuthConfig from './aws-exports';
-import { SignUpDto } from './dtos/sign-up.dto';
-import { SignInDto } from './dtos/sign-in.dto';
-import { SignInResponseDto } from './dtos/sign-in-response.dto';
-import { createHmac } from 'crypto';
-import { RefreshTokenDto } from './dtos/refresh-token.dto';
-import { Status } from '../users/types';
-import { ConfirmPasswordDto } from './dtos/confirm-password.dto';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { CognitoService } from '../util/cognito/cognito.service';
+import { User } from '../users/user.entity';
+import { AccountStatus } from '../users/status';
 
 @Injectable()
 export class AuthService {
-  private readonly providerClient: CognitoIdentityProviderClient;
-  private readonly clientSecret: string;
+  private readonly logger = new Logger(AuthService.name);
 
-  constructor() {
-    this.providerClient = new CognitoIdentityProviderClient({
-      region: CognitoAuthConfig.region,
-      credentials: {
-        accessKeyId: process.env.NX_AWS_ACCESS_KEY,
-        secretAccessKey: process.env.NX_AWS_SECRET_ACCESS_KEY,
-      },
-    });
+  constructor(
+    private readonly cognitoService: CognitoService,
+    @InjectRepository(User) private readonly userRepo: Repository<User>,
+  ) {}
 
-    this.clientSecret = process.env.COGNITO_CLIENT_SECRET;
+  // ─── DEV ONLY ─ remove before shipping ───────────────────────────────────────
+  async findUserByEmail(email: string): Promise<User | null> {
+    return this.userRepo.findOneBy({ email });
   }
+  // ─────────────────────────────────────────────────────────────────────────────
 
-  // Computes secret hash to authenticate this backend to Cognito
-  // Hash key is the Cognito client secret, message is username + client ID
-  // Username value depends on the command
-  // (see https://docs.aws.amazon.com/cognito/latest/developerguide/signing-up-users-in-your-app.html#cognito-user-pools-computing-secret-hash)
-  calculateHash(username: string): string {
-    const hmac = createHmac('sha256', this.clientSecret);
-    hmac.update(username + CognitoAuthConfig.clientId);
-    return hmac.digest('base64');
-  }
+  async verifyJwt(token: string): Promise<User> {
+    let payload: Record<string, unknown>;
 
-  async getUser(userSub: string): Promise<AttributeType[]> {
-    const listUsersCommand = new ListUsersCommand({
-      UserPoolId: CognitoAuthConfig.userPoolId,
-      Filter: `sub = "${userSub}"`,
-    });
+    try {
+      payload = await this.cognitoService.validateToken(token);
+      this.logger.log(
+        `Token validated, claims: ${JSON.stringify({
+          email: payload.email,
+          token_use: payload.token_use,
+          aud: payload.aud,
+        })}`,
+      );
+    } catch (error) {
+      this.logger.error(`Cognito token validation failed: ${error.message}`);
+      throw new UnauthorizedException('Invalid token');
+    }
 
-    // TODO need error handling
-    const { Users } = await this.providerClient.send(listUsersCommand);
-    return Users[0].Attributes;
-  }
+    const email = payload.email as string;
+    if (!email) {
+      this.logger.error(
+        `Token has no email claim. Payload keys: ${Object.keys(payload).join(
+          ', ',
+        )}`,
+      );
+      throw new UnauthorizedException('Token missing email claim');
+    }
 
-  async signup(
-    { firstName, lastName, email, password }: SignUpDto,
-    status: Status = Status.STANDARD,
-  ): Promise<boolean> {
-    // Needs error handling
-    const signUpCommand = new SignUpCommand({
-      ClientId: CognitoAuthConfig.clientId,
-      SecretHash: this.calculateHash(email),
-      Username: email,
-      Password: password,
-      UserAttributes: [
-        {
-          Name: 'name',
-          Value: `${firstName} ${lastName}`,
-        },
-        // Optional: add a custom Cognito attribute called "role" that also stores the user's status/role
-        // If you choose to do so, you'll have to first add this custom attribute in your user pool
-        {
-          Name: 'custom:role',
-          Value: status,
-        },
-      ],
-    });
+    const user = await this.userRepo.findOneBy({ email });
+    if (!user) {
+      this.logger.error(`No user found in DB for email: ${email}`);
+      throw new UnauthorizedException('User not found');
+    }
 
-    const response = await this.providerClient.send(signUpCommand);
-    return response.UserConfirmed;
-  }
+    if (user.accountStatus === AccountStatus.DEACTIVATED) {
+      this.logger.warn(`Deactivated user attempted login: ${email}`);
+      throw new UnauthorizedException('Account is deactivated');
+    }
 
-  async verifyUser(email: string, verificationCode: string): Promise<void> {
-    const confirmCommand = new ConfirmSignUpCommand({
-      ClientId: CognitoAuthConfig.clientId,
-      SecretHash: this.calculateHash(email),
-      Username: email,
-      ConfirmationCode: verificationCode,
-    });
+    if (user.accountStatus === AccountStatus.INVITE_SENT) {
+      user.accountStatus = AccountStatus.ACTIVATED;
+      await this.userRepo.save(user);
+    }
 
-    await this.providerClient.send(confirmCommand);
-  }
-
-  async signin({ email, password }: SignInDto): Promise<SignInResponseDto> {
-    const signInCommand = new AdminInitiateAuthCommand({
-      AuthFlow: 'ADMIN_USER_PASSWORD_AUTH',
-      ClientId: CognitoAuthConfig.clientId,
-      UserPoolId: CognitoAuthConfig.userPoolId,
-      AuthParameters: {
-        USERNAME: email,
-        PASSWORD: password,
-        SECRET_HASH: this.calculateHash(email),
-      },
-    });
-
-    const response = await this.providerClient.send(signInCommand);
-
-    return {
-      accessToken: response.AuthenticationResult.AccessToken,
-      refreshToken: response.AuthenticationResult.RefreshToken,
-      idToken: response.AuthenticationResult.IdToken,
-    };
-  }
-
-  // Refresh token hash uses a user's sub (unique ID), not their username (typically their email)
-  async refreshToken({
-    refreshToken,
-    userSub,
-  }: RefreshTokenDto): Promise<SignInResponseDto> {
-    const refreshCommand = new AdminInitiateAuthCommand({
-      AuthFlow: 'REFRESH_TOKEN_AUTH',
-      ClientId: CognitoAuthConfig.clientId,
-      UserPoolId: CognitoAuthConfig.userPoolId,
-      AuthParameters: {
-        REFRESH_TOKEN: refreshToken,
-        SECRET_HASH: this.calculateHash(userSub),
-      },
-    });
-
-    const response = await this.providerClient.send(refreshCommand);
-
-    return {
-      accessToken: response.AuthenticationResult.AccessToken,
-      refreshToken: refreshToken,
-      idToken: response.AuthenticationResult.IdToken,
-    };
-  }
-
-  async forgotPassword(email: string) {
-    const forgotCommand = new ForgotPasswordCommand({
-      ClientId: CognitoAuthConfig.clientId,
-      Username: email,
-      SecretHash: this.calculateHash(email),
-    });
-
-    await this.providerClient.send(forgotCommand);
-  }
-
-  async confirmForgotPassword({
-    email,
-    confirmationCode,
-    newPassword,
-  }: ConfirmPasswordDto) {
-    const confirmComamnd = new ConfirmForgotPasswordCommand({
-      ClientId: CognitoAuthConfig.clientId,
-      SecretHash: this.calculateHash(email),
-      Username: email,
-      ConfirmationCode: confirmationCode,
-      Password: newPassword,
-    });
-
-    await this.providerClient.send(confirmComamnd);
-  }
-
-  async deleteUser(email: string): Promise<void> {
-    const adminDeleteUserCommand = new AdminDeleteUserCommand({
-      Username: email,
-      UserPoolId: CognitoAuthConfig.userPoolId,
-    });
-
-    await this.providerClient.send(adminDeleteUserCommand);
+    return user;
   }
 }

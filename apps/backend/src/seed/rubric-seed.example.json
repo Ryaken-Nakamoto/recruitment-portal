@@ -1,0 +1,30 @@
+{
+  "screeningRubric": {
+    "name": "Developer Application Rubric",
+    "criteria": [
+      {
+        "name": "",
+        "oneDescription": "",
+        "twoDescription": "",
+        "threeDescription": ""
+      }
+    ]
+  },
+  "interviewRubrics": [
+    {
+      "name": "Behavioral",
+      "criteria": [
+        {
+          "name": "",
+          "question": "",
+          "criteria": "",
+          "maxScore": 0
+        }
+      ]
+    },
+    {
+      "name": "Technical",
+      "criteria": []
+    }
+  ]
+}

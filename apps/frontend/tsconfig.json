@@ -10,7 +10,7 @@
     "paths": {
       "@api/*": ["api/*"],
       "@components/*": ["components/*"],
-      "@containers/*": ["containers/*"],
+      "@pages/*": ["pages/*"],
       "@public/*": ["../public/*"],
       "@shared/*": ["../../../shared/*"],
       "@utils/*": ["utils/*"]
