@@ -48,10 +48,8 @@ jobs:
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
             cd /home/ubuntu/recruitment-portal
             git pull origin main
-            yarn install --frozen-lockfile
-            NX_BIN=$(find node_modules -name "nx.js" -path "*/bin/nx.js" | head -1)
-            echo "Using nx at: $NX_BIN"
-            node "$NX_BIN" run backend:build --configuration production
+            yarn install --frozen-lockfile --check-files
+            node ./node_modules/nx/bin/nx.js run backend:build --configuration production
             npm run migration:run
             pm2 reload ecosystem.config.cjs --update-env
           EOF
