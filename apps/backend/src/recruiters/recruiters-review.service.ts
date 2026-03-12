@@ -68,7 +68,6 @@ export class RecruitersReviewService {
         const app = a.application as Application;
         const applicant = app.applicant as {
           name: string;
-          graduationYear: number | null;
         };
 
         let reviewStatus: string;
@@ -102,7 +101,6 @@ export class RecruitersReviewService {
             id: app.id,
             round: app.round,
             applicantName: applicant.name,
-            graduationYear: applicant.graduationYear,
           },
           reviewStatus,
         };

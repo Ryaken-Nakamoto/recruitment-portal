@@ -77,7 +77,6 @@ export class ApplicationsService {
         email: (a.applicant as Applicant).email,
         major: (a.applicant as Applicant).major,
         academicYear: (a.applicant as Applicant).academicYear,
-        graduationYear: (a.applicant as Applicant).graduationYear,
       },
     }));
 

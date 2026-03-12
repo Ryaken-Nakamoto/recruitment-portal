@@ -23,9 +23,6 @@ export class Applicant {
   @Column({ type: 'varchar', unique: true })
   email: string;
 
-  @Column({ type: 'int', nullable: true })
-  graduationYear: number | null;
-
   @Column({ type: 'varchar' })
   @IsEnum(AcademicYear)
   academicYear: AcademicYear;

@@ -45,7 +45,6 @@ describe('ApplicantsService', () => {
         name: 'Alice Smith',
         major: 'Computer Science',
         academicYear: AcademicYear.FIRST,
-        graduationYear: null,
         createdAt: new Date(),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         application: undefined as any,
@@ -69,7 +68,6 @@ describe('ApplicantsService', () => {
         name: 'Alice Smith',
         major: 'Computer Science',
         academicYear: AcademicYear.FIRST,
-        graduationYear: null,
       });
       expect(applicantRepo.save).toHaveBeenCalled();
     });
@@ -81,7 +79,6 @@ describe('ApplicantsService', () => {
         name: 'Bob Jones',
         major: 'Engineering',
         academicYear: AcademicYear.SECOND,
-        graduationYear: 2025,
         createdAt: new Date(),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         application: undefined as any,
@@ -112,7 +109,6 @@ describe('ApplicantsService', () => {
         name: 'Carol White',
         major: 'Physics',
         academicYear: AcademicYear.FIFTH,
-        graduationYear: null,
         createdAt: new Date(),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         application: undefined as any,
@@ -129,24 +125,6 @@ describe('ApplicantsService', () => {
       expect(applicantRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
           academicYear: AcademicYear.FIFTH,
-        }),
-      );
-    });
-
-    it('sets graduationYear to null for new applicants', async () => {
-      applicantRepo.findOne.mockResolvedValue(null);
-      applicantRepo.save.mockResolvedValue({} as unknown as Applicant);
-
-      await service.findOrCreate({
-        email: 'test@example.com',
-        name: 'Test User',
-        major: 'Math',
-        year: FormYear.THIRD,
-      });
-
-      expect(applicantRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          graduationYear: null,
         }),
       );
     });

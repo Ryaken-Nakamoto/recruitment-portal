@@ -141,7 +141,7 @@ describe('RawGoogleFormsService', () => {
         otherExperiences: 'Interned at a startup',
         heardAboutC4C: [HearAboutC4C.WORD_OF_MOUTH],
         heardAboutC4COther: null,
-        appliedBefore: false,
+        appliedBefore: 'no',
         fallCommitments: 'I can commit 10 hours per week',
         questionsOrConcerns: null,
         submittedAt: new Date(),
@@ -182,7 +182,7 @@ describe('RawGoogleFormsService', () => {
         otherExperiences: null,
         heardAboutC4C: [HearAboutC4C.WORD_OF_MOUTH],
         heardAboutC4COther: null,
-        appliedBefore: false,
+        appliedBefore: 'no',
         fallCommitments: 'I can commit 10 hours per week',
         questionsOrConcerns: null,
         submittedAt: new Date(),
@@ -225,7 +225,7 @@ describe('RawGoogleFormsService', () => {
         otherExperiences: 'Interned at a startup',
         heardAboutC4C: [HearAboutC4C.WORD_OF_MOUTH],
         heardAboutC4COther: null,
-        appliedBefore: false,
+        appliedBefore: 'no',
         fallCommitments: 'I can commit 10 hours per week',
         questionsOrConcerns: null,
         submittedAt: new Date(),
@@ -243,7 +243,7 @@ describe('RawGoogleFormsService', () => {
       expect(createdObj.questionsOrConcerns).toBeNull();
     });
 
-    it('should parse appliedBefore string to boolean true', async () => {
+    it('should store appliedBefore verbatim from the DTO', async () => {
       const savedForm: RawGoogleForm = {
         id: 3,
         email: 'test@example.com',
@@ -261,7 +261,7 @@ describe('RawGoogleFormsService', () => {
         otherExperiences: 'Interned at a startup',
         heardAboutC4C: [HearAboutC4C.WORD_OF_MOUTH],
         heardAboutC4COther: null,
-        appliedBefore: true,
+        appliedBefore: 'Yes',
         fallCommitments: 'I can commit 10 hours per week',
         questionsOrConcerns: null,
         submittedAt: new Date(),
@@ -271,78 +271,10 @@ describe('RawGoogleFormsService', () => {
       mockRepository.create.mockReturnValue(savedForm);
       mockRepository.save.mockResolvedValue(savedForm);
 
-      const dtoYes = { ...mockDto, appliedBefore: 'yes' };
+      const dtoYes = { ...mockDto, appliedBefore: 'Yes' };
       await service.submitGoogleForm(dtoYes);
 
-      expect(mockRepository.create.mock.calls[0][0].appliedBefore).toBe(true);
-    });
-
-    it('should parse appliedBefore string "true" to boolean', async () => {
-      const savedForm: RawGoogleForm = {
-        id: 4,
-        email: 'test@example.com',
-        fullName: 'John Doe',
-        year: FormYear.FOURTH,
-        college: College.ENGINEERING,
-        major: 'Computer Science',
-        codingExperience: [CodingExperience.SOFTWARE_DEVELOPMENT],
-        codingExperienceOther: null,
-        resumeUrl: 'https://example.com/resume.pdf',
-        whyC4C: 'I want to help the community',
-        selfStartedProject: 'Built a web app',
-        communityImpact: 'Taught students to code',
-        teamConflict: 'I listened to the other person',
-        otherExperiences: 'Interned at a startup',
-        heardAboutC4C: [HearAboutC4C.WORD_OF_MOUTH],
-        heardAboutC4COther: null,
-        appliedBefore: true,
-        fallCommitments: 'I can commit 10 hours per week',
-        questionsOrConcerns: null,
-        submittedAt: new Date(),
-      } as unknown as RawGoogleForm;
-
-      mockRepository.findOne.mockResolvedValue(null);
-      mockRepository.create.mockReturnValue(savedForm);
-      mockRepository.save.mockResolvedValue(savedForm);
-
-      const dtoTrue = { ...mockDto, appliedBefore: 'true' };
-      await service.submitGoogleForm(dtoTrue);
-
-      expect(mockRepository.create.mock.calls[0][0].appliedBefore).toBe(true);
-    });
-
-    it('should parse appliedBefore string to boolean false', async () => {
-      const savedForm: RawGoogleForm = {
-        id: 5,
-        email: 'test@example.com',
-        fullName: 'John Doe',
-        year: FormYear.FOURTH,
-        college: College.ENGINEERING,
-        major: 'Computer Science',
-        codingExperience: [CodingExperience.SOFTWARE_DEVELOPMENT],
-        codingExperienceOther: null,
-        resumeUrl: 'https://example.com/resume.pdf',
-        whyC4C: 'I want to help the community',
-        selfStartedProject: 'Built a web app',
-        communityImpact: 'Taught students to code',
-        teamConflict: 'I listened to the other person',
-        otherExperiences: 'Interned at a startup',
-        heardAboutC4C: [HearAboutC4C.WORD_OF_MOUTH],
-        heardAboutC4COther: null,
-        appliedBefore: false,
-        fallCommitments: 'I can commit 10 hours per week',
-        questionsOrConcerns: null,
-        submittedAt: new Date(),
-      } as unknown as RawGoogleForm;
-
-      mockRepository.findOne.mockResolvedValue(null);
-      mockRepository.create.mockReturnValue(savedForm);
-      mockRepository.save.mockResolvedValue(savedForm);
-
-      const dtoNo = { ...mockDto, appliedBefore: 'no' };
-      await service.submitGoogleForm(dtoNo);
-
-      expect(mockRepository.create.mock.calls[0][0].appliedBefore).toBe(false);
+      expect(mockRepository.create.mock.calls[0][0].appliedBefore).toBe('Yes');
     });
 
     it('calls ApplicantsService.findOrCreate and ApplicationsService.findOrCreate after saving the form', async () => {
@@ -363,7 +295,7 @@ describe('RawGoogleFormsService', () => {
         otherExperiences: 'Interned at a startup',
         heardAboutC4C: [HearAboutC4C.WORD_OF_MOUTH],
         heardAboutC4COther: null,
-        appliedBefore: false,
+        appliedBefore: 'no',
         fallCommitments: 'I can commit 10 hours per week',
         questionsOrConcerns: null,
         submittedAt: new Date(),
@@ -422,7 +354,7 @@ describe('RawGoogleFormsService', () => {
         otherExperiences: 'Interned at a startup',
         heardAboutC4C: [HearAboutC4C.WORD_OF_MOUTH],
         heardAboutC4COther: null,
-        appliedBefore: false,
+        appliedBefore: 'no',
         fallCommitments: 'I can commit 10 hours per week',
         questionsOrConcerns: null,
         submittedAt: new Date(),
@@ -472,7 +404,7 @@ describe('RawGoogleFormsService', () => {
         otherExperiences: 'Interned at a startup',
         heardAboutC4C: [HearAboutC4C.WORD_OF_MOUTH],
         heardAboutC4COther: null,
-        appliedBefore: false,
+        appliedBefore: 'no',
         fallCommitments: 'I can commit 10 hours per week',
         questionsOrConcerns: null,
         submittedAt: new Date(),

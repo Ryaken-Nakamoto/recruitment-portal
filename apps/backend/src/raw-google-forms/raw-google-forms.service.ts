@@ -68,8 +68,7 @@ export class RawGoogleFormsService {
         otherExperiences: dto.otherExperiences || null,
         heardAboutC4C: dto.heardAboutC4C,
         heardAboutC4COther: dto.heardAboutC4COther || null,
-        appliedBefore:
-          dto.appliedBefore === 'yes' || dto.appliedBefore === 'true',
+        appliedBefore: dto.appliedBefore,
         fallCommitments: dto.fallCommitments,
         questionsOrConcerns: dto.questionsOrConcerns || null,
       });

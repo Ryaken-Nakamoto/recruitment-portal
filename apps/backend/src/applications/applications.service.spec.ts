@@ -49,7 +49,6 @@ describe('ApplicationsService', () => {
       name: 'Alice Smith',
       major: 'CS',
       academicYear: AcademicYear.FIRST,
-      graduationYear: null,
       createdAt: new Date(),
       application: undefined as unknown as Relation<Application>,
     };
@@ -71,7 +70,7 @@ describe('ApplicationsService', () => {
       otherExperiences: null,
       heardAboutC4C: [],
       heardAboutC4COther: null,
-      appliedBefore: false,
+      appliedBefore: 'no',
       fallCommitments: 'Full time',
       questionsOrConcerns: null,
       submittedAt: new Date(),
@@ -136,7 +135,6 @@ describe('ApplicationsService', () => {
       name: 'Alice Smith',
       major: 'CS',
       academicYear: AcademicYear.FIRST,
-      graduationYear: null,
       createdAt: new Date(),
       application: undefined as unknown as Relation<Application>,
     };
@@ -147,7 +145,6 @@ describe('ApplicationsService', () => {
       name: 'Bob Jones',
       major: 'Math',
       academicYear: AcademicYear.SECOND,
-      graduationYear: 2026,
       createdAt: new Date(),
       application: undefined as unknown as Relation<Application>,
     };

@@ -114,16 +114,12 @@ describe('RecruitersReviewService', () => {
   // listAssignments
   // ──────────────────────────────────────────────────────────────────────
   describe('listAssignments', () => {
-    const makeAssignment = (
-      id: number,
-      round: ApplicationRound,
-      graduationYear = 2025,
-    ) => ({
+    const makeAssignment = (id: number, round: ApplicationRound) => ({
       id,
       application: {
         id: id * 10,
         round,
-        applicant: { name: 'Jane Doe', graduationYear },
+        applicant: { name: 'Jane Doe' },
       },
     });
 
@@ -140,15 +136,14 @@ describe('RecruitersReviewService', () => {
       expect(result.data).toHaveLength(1);
     });
 
-    it('includes applicantName, graduationYear, round, and reviewStatus in each item', async () => {
-      const assignment = makeAssignment(1, ApplicationRound.SCREENING, 2026);
+    it('includes applicantName, round, and reviewStatus in each item', async () => {
+      const assignment = makeAssignment(1, ApplicationRound.SCREENING);
       assignmentRepo.findAndCount!.mockResolvedValue([[assignment], 1]);
       screeningReviewRepo.findOne!.mockResolvedValue(null);
 
       const result = await service.listAssignments(recruiter, 1, 20);
 
       expect(result.data[0].application.applicantName).toBe('Jane Doe');
-      expect(result.data[0].application.graduationYear).toBe(2026);
       expect(result.data[0].application.round).toBe(ApplicationRound.SCREENING);
       expect(result.data[0].reviewStatus).toBe('not_started');
     });

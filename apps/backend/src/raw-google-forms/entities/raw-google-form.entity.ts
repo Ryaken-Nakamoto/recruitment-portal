@@ -75,8 +75,8 @@ export class RawGoogleForm {
   @Column({ type: 'varchar', nullable: true, default: null })
   heardAboutC4COther: string | null;
 
-  @Column({ type: 'boolean' })
-  appliedBefore: boolean;
+  @Column({ type: 'varchar' })
+  appliedBefore: string;
 
   @Column({ type: 'text' })
   fallCommitments: string;

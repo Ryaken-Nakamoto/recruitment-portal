@@ -9,7 +9,6 @@ export class ApplicantSummaryDto {
   email: string;
   major: string;
   academicYear: AcademicYear;
-  graduationYear: number | null;
 }
 
 export class ApplicationListItemDto {

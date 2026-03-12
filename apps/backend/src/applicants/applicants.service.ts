@@ -64,7 +64,6 @@ export class ApplicantsService {
       name: dto.name,
       major: dto.major,
       academicYear: this.mapFormYearToAcademicYear(dto.year),
-      graduationYear: null,
     });
 
     const savedApplicant = await this.applicantRepository.save(applicant);
