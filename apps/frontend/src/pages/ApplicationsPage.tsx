@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -96,6 +97,7 @@ function FinalDecisionBadge({ decision }: { decision: FinalDecision | null }) {
 
 const ApplicationsPage: React.FC = () => {
   const [page, setPage] = useState(1);
+  const navigate = useNavigate();
   const limit = 20;
 
   const { data, isLoading, isError } = useQuery({
@@ -149,7 +151,14 @@ const ApplicationsPage: React.FC = () => {
                 </TableRow>
               ) : (
                 data.data.map((app: ApplicationListItemDto) => (
-                  <TableRow key={app.id}>
+                  <TableRow
+                    key={app.id}
+                    onClick={() => navigate(`/admin/applications/${app.id}`)}
+                    sx={{
+                      cursor: 'pointer',
+                      '&:hover': { backgroundColor: 'action.hover' },
+                    }}
+                  >
                     <TableCell>{app.applicant.name}</TableCell>
                     <TableCell>{app.applicant.email}</TableCell>
                     <TableCell>{app.applicant.major}</TableCell>

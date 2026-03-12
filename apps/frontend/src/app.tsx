@@ -13,6 +13,7 @@ import RubricsPage from '@pages/RubricsPage';
 import EmailsPage from '@pages/EmailsPage';
 import AssignmentPage from '@pages/AssignmentPage';
 import ApplicationsPage from '@pages/ApplicationsPage';
+import DetailedApplicationPage from '@pages/DetailedApplicationPage';
 import RecruiterHomePage from '@pages/RecruiterHomePage';
 import { AuthedApp } from './components/AuthedApp';
 import { Role } from '@api/dtos/enums';
@@ -72,6 +73,10 @@ const router = createBrowserRouter([
       {
         path: 'applications',
         element: <ApplicationsPage />,
+      },
+      {
+        path: 'applications/:id',
+        element: <DetailedApplicationPage />,
       },
     ],
   },

@@ -2,6 +2,7 @@ import {
   Controller,
   DefaultValuePipe,
   Get,
+  Param,
   ParseIntPipe,
   Query,
 } from '@nestjs/common';
@@ -23,5 +24,11 @@ export class ApplicationsController {
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ) {
     return this.applicationsService.listAll(page, limit);
+  }
+
+  @Get(':id')
+  @Auth(Role.ADMIN)
+  findOneDetail(@Param('id', ParseIntPipe) id: number) {
+    return this.applicationsService.findOneDetail(id);
   }
 }

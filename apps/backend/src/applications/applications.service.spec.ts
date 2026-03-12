@@ -11,6 +11,7 @@ import { ApplicationRound } from './enums/application-round.enum';
 import { RoundStatus } from './enums/round-status.enum';
 import { FormYear } from '../raw-google-forms/enums/form-year.enum';
 import { College } from '../raw-google-forms/enums/college.enum';
+import { NotFoundException } from '@nestjs/common';
 
 describe('ApplicationsService', () => {
   let service: ApplicationsService;
@@ -212,6 +213,77 @@ describe('ApplicationsService', () => {
       expect(result.data).toHaveLength(0);
       expect(result.total).toBe(0);
       expect(result.totalPages).toBe(0);
+    });
+  });
+
+  describe('findOneDetail', () => {
+    const mockApplicant: Applicant = {
+      id: 1,
+      email: 'test@example.com',
+      name: 'Alice Smith',
+      major: 'CS',
+      academicYear: AcademicYear.FIRST,
+      createdAt: new Date(),
+      application: undefined as unknown as Relation<Application>,
+    };
+
+    const mockRawForm: RawGoogleForm = {
+      id: 1,
+      email: 'test@example.com',
+      fullName: 'Alice Smith',
+      year: FormYear.FIRST,
+      college: College.ENGINEERING,
+      major: 'CS',
+      codingExperience: [],
+      codingExperienceOther: null,
+      resumeUrl: 'https://example.com/resume.pdf',
+      whyC4C: 'I want to help',
+      selfStartedProject: null,
+      communityImpact: null,
+      teamConflict: null,
+      otherExperiences: null,
+      heardAboutC4C: [],
+      heardAboutC4COther: null,
+      appliedBefore: 'no',
+      fallCommitments: 'Full time',
+      questionsOrConcerns: null,
+      submittedAt: new Date(),
+      application: undefined as unknown as Relation<Application>,
+    };
+
+    it('returns application with applicant and raw form', async () => {
+      const mockApp: Application = {
+        id: 1,
+        applicant: mockApplicant,
+        rawGoogleForm: mockRawForm,
+        round: ApplicationRound.SCREENING,
+        roundStatus: RoundStatus.PENDING,
+        finalDecision: null,
+        submittedAt: new Date(),
+      };
+      applicationRepo.findOne.mockResolvedValue(mockApp);
+
+      const result = await service.findOneDetail(1);
+
+      expect(applicationRepo.findOne).toHaveBeenCalledWith({
+        where: { id: 1 },
+        relations: ['applicant', 'rawGoogleForm'],
+      });
+      expect(result.id).toBe(1);
+      expect(result.applicant.name).toBe('Alice Smith');
+      expect(result.applicant.email).toBe('test@example.com');
+      expect(result.rawGoogleForm.whyC4C).toBe('I want to help');
+      expect(result.rawGoogleForm.resumeUrl).toBe(
+        'https://example.com/resume.pdf',
+      );
+    });
+
+    it('throws NotFoundException when application not found', async () => {
+      applicationRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.findOneDetail(999)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

@@ -8,6 +8,7 @@ import { InterviewRubric } from '../rubrics/entities/interview-rubric.entity';
 import { Applicant } from '../applicants/entities/applicant.entity';
 import { Application } from '../applications/entities/application.entity';
 import { Email } from '../emails/entities/email.entity';
+import { RawGoogleFormsModule } from '../raw-google-forms/raw-google-forms.module';
 // ─── DEV ONLY ─ remove before shipping ───────────────────────────────────────
 import { Recruiter } from '../recruiters/entities/recruiter.entity';
 // ─────────────────────────────────────────────────────────────────────────────
@@ -26,6 +27,7 @@ import { Recruiter } from '../recruiters/entities/recruiter.entity';
       Recruiter,
       // ─────────────────────────────────────────────────────────────────────────────
     ]),
+    RawGoogleFormsModule,
   ],
   providers: [SeedService],
 })

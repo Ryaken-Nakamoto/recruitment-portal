@@ -8,6 +8,7 @@ import {
   ApplicationSummaryDto,
   ApplicationsListResponse,
 } from './dtos/application.dto';
+import { ApplicationDetailResponse } from './dtos/application-detail.dto';
 import {
   ExecuteAssignmentRequest,
   ExecuteAssignmentResponse,
@@ -75,6 +76,14 @@ export class ApiClient {
     return this.get(
       `/api/admin/recruiters?page=${page}&limit=${limit}`,
     ) as Promise<RecruiterListResponse>;
+  }
+
+  public async getApplicationDetail(
+    id: number,
+  ): Promise<ApplicationDetailResponse> {
+    return this.get(
+      `/api/admin/applications/${id}`,
+    ) as Promise<ApplicationDetailResponse>;
   }
 
   public async getApplications(

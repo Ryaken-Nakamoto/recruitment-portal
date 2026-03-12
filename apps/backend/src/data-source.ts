@@ -54,9 +54,10 @@ const AppDataSource = new DataSource({
   migrations: ['apps/backend/src/migrations/*.ts'],
   // Setting synchronize: true shouldn't be used in production - otherwise you can lose production data
   synchronize: false,
-  ssl: {
-    rejectUnauthorized: false, // temp for testing
-  },
+  ssl:
+    process.env.NODE_ENV === 'production'
+      ? { rejectUnauthorized: false }
+      : false,
   namingStrategy: new PluralNamingStrategy(),
   // EC2: shorter timeout to fail fast on bad DB config
   connectTimeoutMS: process.env.NODE_ENV === 'production' ? 10000 : 30000,

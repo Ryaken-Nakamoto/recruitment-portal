@@ -16,5 +16,6 @@ import { ApplicationsModule } from '../applications/applications.module';
   ],
   controllers: [RawGoogleFormsController],
   providers: [RawGoogleFormsService],
+  exports: [RawGoogleFormsService],
 })
 export class RawGoogleFormsModule {}

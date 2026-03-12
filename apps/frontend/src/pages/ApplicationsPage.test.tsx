@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ApplicationsPage, {
   formatRound,
@@ -92,9 +93,11 @@ describe('ApplicationsPage component', () => {
     );
 
     render(
-      <QueryClientProvider client={createQueryClient()}>
-        <ApplicationsPage />
-      </QueryClientProvider>,
+      <MemoryRouter>
+        <QueryClientProvider client={createQueryClient()}>
+          <ApplicationsPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
     );
 
     expect(screen.getByRole('progressbar')).toBeTruthy();
@@ -104,9 +107,11 @@ describe('ApplicationsPage component', () => {
     mockGetApplications.mockRejectedValue(new Error('Network error'));
 
     render(
-      <QueryClientProvider client={createQueryClient()}>
-        <ApplicationsPage />
-      </QueryClientProvider>,
+      <MemoryRouter>
+        <QueryClientProvider client={createQueryClient()}>
+          <ApplicationsPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
     );
 
     expect(await screen.findByText(/Failed to load applications/)).toBeTruthy();
@@ -139,9 +144,11 @@ describe('ApplicationsPage component', () => {
     mockGetApplications.mockResolvedValue(mockData);
 
     render(
-      <QueryClientProvider client={createQueryClient()}>
-        <ApplicationsPage />
-      </QueryClientProvider>,
+      <MemoryRouter>
+        <QueryClientProvider client={createQueryClient()}>
+          <ApplicationsPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
     );
 
     expect(await screen.findByText('Alice Smith')).toBeTruthy();
@@ -162,9 +169,11 @@ describe('ApplicationsPage component', () => {
     mockGetApplications.mockResolvedValue(mockData);
 
     render(
-      <QueryClientProvider client={createQueryClient()}>
-        <ApplicationsPage />
-      </QueryClientProvider>,
+      <MemoryRouter>
+        <QueryClientProvider client={createQueryClient()}>
+          <ApplicationsPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
     );
 
     expect(await screen.findByText('No applications found')).toBeTruthy();
@@ -181,9 +190,11 @@ describe('ApplicationsPage component', () => {
     mockGetApplications.mockResolvedValue(mockData);
 
     render(
-      <QueryClientProvider client={createQueryClient()}>
-        <ApplicationsPage />
-      </QueryClientProvider>,
+      <MemoryRouter>
+        <QueryClientProvider client={createQueryClient()}>
+          <ApplicationsPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
     );
 
     expect(await screen.findByRole('navigation')).toBeTruthy();

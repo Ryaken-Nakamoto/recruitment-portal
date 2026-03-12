@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Application } from './entities/application.entity';
@@ -8,6 +8,7 @@ import {
   ApplicationListItemDto,
   ApplicationsListResponseDto,
 } from './dto/application-list-item.dto';
+import { ApplicationDetailDto } from './dto/application-detail.dto';
 
 @Injectable()
 export class ApplicationsService {
@@ -47,6 +48,59 @@ export class ApplicationsService {
       `Created new application for applicant: ${applicant.email}`,
     );
     return { application: savedApplication, created: true };
+  }
+
+  async findOneDetail(id: number): Promise<ApplicationDetailDto> {
+    const application = await this.applicationRepository.findOne({
+      where: { id },
+      relations: ['applicant', 'rawGoogleForm'],
+    });
+
+    if (!application) {
+      throw new NotFoundException(`Application with id ${id} not found`);
+    }
+
+    const applicant = application.applicant as Applicant;
+    const rawForm = application.rawGoogleForm as RawGoogleForm;
+
+    this.logger.log(`Retrieved application detail for id ${id}`);
+
+    return {
+      id: application.id,
+      round: application.round,
+      roundStatus: application.roundStatus,
+      finalDecision: application.finalDecision,
+      submittedAt: application.submittedAt,
+      applicant: {
+        id: applicant.id,
+        name: applicant.name,
+        email: applicant.email,
+        academicYear: applicant.academicYear,
+        major: applicant.major,
+      },
+      rawGoogleForm: {
+        id: rawForm.id,
+        email: rawForm.email,
+        fullName: rawForm.fullName,
+        year: rawForm.year,
+        college: rawForm.college,
+        major: rawForm.major,
+        codingExperience: rawForm.codingExperience,
+        codingExperienceOther: rawForm.codingExperienceOther,
+        resumeUrl: rawForm.resumeUrl,
+        whyC4C: rawForm.whyC4C,
+        selfStartedProject: rawForm.selfStartedProject,
+        communityImpact: rawForm.communityImpact,
+        teamConflict: rawForm.teamConflict,
+        otherExperiences: rawForm.otherExperiences,
+        heardAboutC4C: rawForm.heardAboutC4C,
+        heardAboutC4COther: rawForm.heardAboutC4COther,
+        appliedBefore: rawForm.appliedBefore,
+        fallCommitments: rawForm.fallCommitments,
+        questionsOrConcerns: rawForm.questionsOrConcerns,
+        submittedAt: rawForm.submittedAt,
+      },
+    };
   }
 
   async listAll(

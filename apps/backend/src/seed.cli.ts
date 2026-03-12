@@ -9,6 +9,10 @@ import { InterviewRubric } from './rubrics/entities/interview-rubric.entity';
 import { Applicant } from './applicants/entities/applicant.entity';
 import { Application } from './applications/entities/application.entity';
 import { Email } from './emails/entities/email.entity';
+import { RawGoogleForm } from './raw-google-forms/entities/raw-google-form.entity';
+import { RawGoogleFormsService } from './raw-google-forms/raw-google-forms.service';
+import { ApplicantsService } from './applicants/applicants.service';
+import { ApplicationsService } from './applications/applications.service';
 
 async function runSeed() {
   try {
@@ -25,6 +29,17 @@ async function runSeed() {
     const applicantRepo = AppDataSource.getRepository(Applicant);
     const applicationRepo = AppDataSource.getRepository(Application);
     const emailRepo = AppDataSource.getRepository(Email);
+    const rawGoogleFormRepo = AppDataSource.getRepository(RawGoogleForm);
+
+    // Create dependent services
+    const applicantsService = new ApplicantsService(applicantRepo);
+    const applicationsService = new ApplicationsService(applicationRepo);
+    const rawGoogleFormsService = new RawGoogleFormsService(
+      rawGoogleFormRepo,
+      null as unknown as never, // S3Service not needed for seeding
+      applicantsService,
+      applicationsService,
+    );
 
     // Initialize seed service
     const seedService = new SeedService(
@@ -36,6 +51,7 @@ async function runSeed() {
       applicantRepo,
       applicationRepo,
       emailRepo,
+      rawGoogleFormsService,
     );
 
     // Run seed
