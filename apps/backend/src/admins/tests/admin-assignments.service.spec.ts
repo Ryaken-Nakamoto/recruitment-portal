@@ -105,13 +105,13 @@ describe('AdminAssignmentsService', () => {
         id: 1,
         round: ApplicationRound.SCREENING,
         roundStatus: RoundStatus.PENDING,
-        applicant: { firstName: 'Alice', lastName: 'Smith' },
+        applicant: { name: 'Alice Smith' },
       },
       {
         id: 2,
         round: ApplicationRound.SCREENING,
         roundStatus: RoundStatus.IN_PROGRESS,
-        applicant: { firstName: 'Bob', lastName: 'Jones' },
+        applicant: { name: 'Bob Jones' },
       },
     ] as Application[];
 
@@ -129,7 +129,7 @@ describe('AdminAssignmentsService', () => {
         id: 1,
         round: ApplicationRound.SCREENING,
         roundStatus: RoundStatus.PENDING,
-        applicant: { firstName: 'Alice', lastName: 'Smith' },
+        applicant: { name: 'Alice Smith' },
       });
     });
 
@@ -389,14 +389,14 @@ describe('AdminAssignmentsService', () => {
         id: 1,
         application: {
           id: 10,
-          applicant: { firstName: 'Alice', lastName: 'Smith' },
+          applicant: { name: 'Alice Smith' },
         },
       } as unknown as Assignment;
       const assignment11 = {
         id: 2,
         application: {
           id: 11,
-          applicant: { firstName: 'Bob', lastName: 'Jones' },
+          applicant: { name: 'Bob Jones' },
         },
       } as unknown as Assignment;
       assignmentRepo.find.mockResolvedValue([assignment10, assignment11]);
@@ -420,14 +420,14 @@ describe('AdminAssignmentsService', () => {
     const screeningApp = {
       id: 10,
       round: ApplicationRound.SCREENING,
-      applicant: { firstName: 'Alice', lastName: 'Smith' },
+      applicant: { name: 'Alice Smith' },
     } as unknown as Application;
 
     const assignment10 = {
       id: 1,
       application: {
         id: 10,
-        applicant: { firstName: 'Alice', lastName: 'Smith' },
+        applicant: { name: 'Alice Smith' },
       },
     } as unknown as Assignment;
 
@@ -485,7 +485,7 @@ describe('AdminAssignmentsService', () => {
     const interviewApp = {
       id: 10,
       round: ApplicationRound.TECHNICAL_INTERVIEW,
-      applicant: { firstName: 'Alice', lastName: 'Smith' },
+      applicant: { name: 'Alice Smith' },
     } as unknown as Application;
 
     function setupInterviewApp() {
@@ -515,7 +515,7 @@ describe('AdminAssignmentsService', () => {
         {
           application: {
             id: 10,
-            applicant: { firstName: 'Alice', lastName: 'Smith' },
+            applicant: { name: 'Alice Smith' },
           },
           status: InterviewReviewStatus.PENDING_APPROVAL,
         } as unknown as InterviewReview,
@@ -536,7 +536,7 @@ describe('AdminAssignmentsService', () => {
         {
           application: {
             id: 10,
-            applicant: { firstName: 'Alice', lastName: 'Smith' },
+            applicant: { name: 'Alice Smith' },
           },
           status: InterviewReviewStatus.APPROVED,
         } as unknown as InterviewReview,

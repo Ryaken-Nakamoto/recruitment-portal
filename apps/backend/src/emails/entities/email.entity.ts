@@ -8,10 +8,10 @@ export class Email {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ unique: true })
+  @Column({ type: 'varchar', unique: true })
   name: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   subject: string;
 
   @Column({ type: 'text' })

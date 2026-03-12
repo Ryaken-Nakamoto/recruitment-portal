@@ -3,12 +3,15 @@ import {
   Column,
   PrimaryGeneratedColumn,
   CreateDateColumn,
+  OneToOne,
+  Relation,
 } from 'typeorm';
 import { IsEmail, IsEnum } from 'class-validator';
 import { FormYear } from '../enums/form-year.enum';
 import { College } from '../enums/college.enum';
 import { CodingExperience } from '../enums/coding-experience.enum';
 import { HearAboutC4C } from '../enums/hear-about-c4c.enum';
+import { Application } from '../../applications/entities/application.entity';
 
 @Entity()
 export class RawGoogleForm {
@@ -17,10 +20,10 @@ export class RawGoogleForm {
 
   // ── Section 1: Basic Info ─────────────────────────────────────
   @IsEmail()
-  @Column()
+  @Column({ type: 'varchar', unique: true })
   email: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   fullName: string;
 
   @Column({ type: 'varchar' })
@@ -31,7 +34,7 @@ export class RawGoogleForm {
   @IsEnum(College)
   college: College;
 
-  @Column()
+  @Column({ type: 'varchar' })
   major: string;
 
   // Multi-select checkboxes — stored as Postgres text[]
@@ -43,7 +46,7 @@ export class RawGoogleForm {
   codingExperienceOther: string | null;
 
   // Full S3 URL to the uploaded PDF
-  @Column()
+  @Column({ type: 'varchar' })
   resumeUrl: string;
 
   // ── Section 2: Short Answer Responses ────────────────────────
@@ -72,7 +75,7 @@ export class RawGoogleForm {
   @Column({ type: 'varchar', nullable: true, default: null })
   heardAboutC4COther: string | null;
 
-  @Column()
+  @Column({ type: 'boolean' })
   appliedBefore: boolean;
 
   @Column({ type: 'text' })
@@ -83,4 +86,7 @@ export class RawGoogleForm {
 
   @CreateDateColumn()
   submittedAt: Date;
+
+  @OneToOne(() => Application, (app) => app.rawGoogleForm)
+  application: Relation<Application>;
 }

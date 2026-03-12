@@ -65,8 +65,7 @@ export class AdminAssignmentsService {
       round: a.round,
       roundStatus: a.roundStatus,
       applicant: {
-        firstName: (a.applicant as Applicant).firstName,
-        lastName: (a.applicant as Applicant).lastName,
+        name: (a.applicant as Applicant).name,
       },
     }));
   }
@@ -247,7 +246,7 @@ export class AdminAssignmentsService {
             if (!appMap.has(app.id)) {
               appMap.set(app.id, {
                 id: app.id,
-                applicantName: `${applicant.firstName} ${applicant.lastName}`,
+                applicantName: applicant.name,
               });
             }
           }
@@ -285,7 +284,7 @@ export class AdminAssignmentsService {
         if (!appMap.has(a.id)) {
           appMap.set(a.id, {
             id: a.id,
-            applicantName: `${applicant.firstName} ${applicant.lastName}`,
+            applicantName: applicant.name,
           });
         }
       }

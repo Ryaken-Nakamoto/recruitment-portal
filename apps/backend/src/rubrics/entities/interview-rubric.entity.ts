@@ -6,7 +6,7 @@ export class InterviewRubric {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ type: 'varchar' })
   name: string;
 
   @OneToMany(() => InterviewCriteria, (criteria) => criteria.rubric, {

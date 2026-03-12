@@ -6,7 +6,7 @@ export class ScreeningRubric {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ type: 'varchar' })
   name: string;
 
   @OneToMany(() => ScreeningCriteria, (criteria) => criteria.rubric, {

@@ -97,8 +97,8 @@ export class AdminDecisionsService {
     const applicant = application.applicant as Applicant;
     const rendered = this.renderTemplate(template.subject, template.body, {
       ...template.defaultContext,
-      firstName: applicant.firstName,
-      lastName: applicant.lastName,
+      firstName: applicant.name.split(' ')[0],
+      lastName: applicant.name.split(' ').slice(1).join(' '),
     });
 
     // TODO: integrate with SES/nodemailer for actual delivery

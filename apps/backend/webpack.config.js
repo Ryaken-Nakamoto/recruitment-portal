@@ -1,21 +1,29 @@
 const { composePlugins, withNx } = require('@nx/webpack');
+const webpack = require('webpack');
 
 // Nx plugins for webpack.
 module.exports = composePlugins(withNx(), (config) => {
-  // Lambda bundling: mark optional NestJS modules as external
-  // NestJS dynamically requires optional modules via optional-require.
-  // We need to tell webpack these are external and shouldn't be bundled.
+  // Mark optional NestJS modules as external so webpack doesn't try to bundle them
+  // NestJS handles missing optional modules gracefully
   config.externals = [
-    // Keep existing externals and add NestJS optional modules
     ...(Array.isArray(config.externals)
       ? config.externals
       : config.externals
       ? [config.externals]
       : []),
-    // Exclude NestJS optional modules
     '@nestjs/microservices',
     '@nestjs/websockets',
-    'class-transformer',
+    'class-transformer/storage',
   ];
+
+  // Ignore these optional modules completely during bundling
+  config.plugins = [
+    ...(config.plugins || []),
+    new webpack.IgnorePlugin({
+      resourceRegExp:
+        /^(@nestjs\/microservices|@nestjs\/websockets|class-transformer\/storage)/,
+    }),
+  ];
+
   return config;
 });

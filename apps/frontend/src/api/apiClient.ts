@@ -4,7 +4,10 @@ import { User } from './dtos/user.dto';
 import { RubricsResponse } from './dtos/rubric.dto';
 import { EmailDto, UpdateEmailDto } from './dtos/email.dto';
 import { ApplicationRound } from './dtos/enums';
-import { ApplicationSummaryDto } from './dtos/application.dto';
+import {
+  ApplicationSummaryDto,
+  ApplicationsListResponse,
+} from './dtos/application.dto';
 import {
   ExecuteAssignmentRequest,
   ExecuteAssignmentResponse,
@@ -72,6 +75,15 @@ export class ApiClient {
     return this.get(
       `/api/admin/recruiters?page=${page}&limit=${limit}`,
     ) as Promise<RecruiterListResponse>;
+  }
+
+  public async getApplications(
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<ApplicationsListResponse> {
+    return this.get(
+      `/api/admin/applications?page=${page}&limit=${limit}`,
+    ) as Promise<ApplicationsListResponse>;
   }
 
   public async inviteRecruiter(dto: InviteRecruiterRequest): Promise<User> {

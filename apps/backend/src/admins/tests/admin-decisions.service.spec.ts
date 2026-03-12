@@ -114,8 +114,7 @@ describe('AdminDecisionsService', () => {
   // ─────────────────────────────────────────────
   describe('sendEmail', () => {
     const mockApplicant = {
-      firstName: 'Alice',
-      lastName: 'Smith',
+      name: 'Alice Smith',
       email: 'alice@example.com',
     };
     const mockTemplate = {

@@ -12,6 +12,7 @@ import RecruiterManagementPage from '@pages/RecruiterManagementPage';
 import RubricsPage from '@pages/RubricsPage';
 import EmailsPage from '@pages/EmailsPage';
 import AssignmentPage from '@pages/AssignmentPage';
+import ApplicationsPage from '@pages/ApplicationsPage';
 import RecruiterHomePage from '@pages/RecruiterHomePage';
 import { AuthedApp } from './components/AuthedApp';
 import { Role } from '@api/dtos/enums';
@@ -67,6 +68,10 @@ const router = createBrowserRouter([
       {
         path: 'assignment',
         element: <AssignmentPage />,
+      },
+      {
+        path: 'applications',
+        element: <ApplicationsPage />,
       },
     ],
   },

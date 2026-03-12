@@ -48,3 +48,8 @@ apps/backend/src/seed/rubric-seed.json
 
 # Source-of-truth documents (internal only)
 source-of-truth/
+
+google-apps-script/
+scripts/
+
+*.pem

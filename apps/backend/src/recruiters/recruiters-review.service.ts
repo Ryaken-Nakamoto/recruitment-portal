@@ -67,9 +67,8 @@ export class RecruitersReviewService {
       assignments.map(async (a) => {
         const app = a.application as Application;
         const applicant = app.applicant as {
-          firstName: string;
-          lastName: string;
-          graduationYear: number;
+          name: string;
+          graduationYear: number | null;
         };
 
         let reviewStatus: string;
@@ -102,7 +101,7 @@ export class RecruitersReviewService {
           application: {
             id: app.id,
             round: app.round,
-            applicantName: `${applicant.firstName} ${applicant.lastName}`,
+            applicantName: applicant.name,
             graduationYear: applicant.graduationYear,
           },
           reviewStatus,

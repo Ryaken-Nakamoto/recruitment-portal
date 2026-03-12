@@ -294,7 +294,7 @@ const AssignmentPage: React.FC = () => {
                         size="small"
                       />
                       <Typography variant="body2">
-                        {app.applicant.firstName} {app.applicant.lastName}
+                        {app.applicant.name}
                       </Typography>
                     </Box>
                   ))

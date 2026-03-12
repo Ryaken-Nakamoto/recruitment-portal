@@ -25,10 +25,6 @@ export class CognitoWrapper {
 
     this.cognitoClient = new CognitoIdentityProviderClient({
       region: CognitoAuthConfig.region,
-      credentials: {
-        accessKeyId: process.env.NX_AWS_ACCESS_KEY as string,
-        secretAccessKey: process.env.NX_AWS_SECRET_ACCESS_KEY as string,
-      },
     });
   }
 

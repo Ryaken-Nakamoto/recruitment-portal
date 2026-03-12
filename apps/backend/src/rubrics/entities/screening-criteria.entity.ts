@@ -13,7 +13,7 @@ export class ScreeningCriteria {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ type: 'varchar' })
   name: string;
 
   @Column({ type: 'text' })

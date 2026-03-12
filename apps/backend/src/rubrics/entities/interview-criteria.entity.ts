@@ -13,7 +13,7 @@ export class InterviewCriteria {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ type: 'varchar' })
   name: string;
 
   @Column({ type: 'text' })
@@ -22,7 +22,7 @@ export class InterviewCriteria {
   @Column({ type: 'text' })
   criteria: string;
 
-  @Column()
+  @Column({ type: 'int' })
   maxScore: number;
 
   @ManyToOne(() => InterviewRubric, (rubric) => rubric.criteria, {

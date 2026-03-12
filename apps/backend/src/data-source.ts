@@ -19,7 +19,11 @@ import { InterviewReviewApproval } from './applications/entities/interview-revie
 import { RawGoogleForm } from './raw-google-forms/entities/raw-google-form.entity';
 import * as dotenv from 'dotenv';
 
-dotenv.config({ path: 'apps/backend/.env' });
+// Only load .env file in local development
+// In production (EC2), env vars are set in /etc/environment
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config({ path: 'apps/backend/.env' });
+}
 
 const AppDataSource = new DataSource({
   type: 'postgres',
@@ -54,6 +58,8 @@ const AppDataSource = new DataSource({
     rejectUnauthorized: false, // temp for testing
   },
   namingStrategy: new PluralNamingStrategy(),
+  // EC2: shorter timeout to fail fast on bad DB config
+  connectTimeoutMS: process.env.NODE_ENV === 'production' ? 10000 : 30000,
 });
 
 export default AppDataSource;

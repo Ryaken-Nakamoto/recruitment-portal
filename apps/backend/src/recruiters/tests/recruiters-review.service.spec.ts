@@ -123,7 +123,7 @@ describe('RecruitersReviewService', () => {
       application: {
         id: id * 10,
         round,
-        applicant: { firstName: 'Jane', lastName: 'Doe', graduationYear },
+        applicant: { name: 'Jane Doe', graduationYear },
       },
     });
 

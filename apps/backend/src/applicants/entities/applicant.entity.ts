@@ -4,8 +4,9 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   OneToOne,
+  Relation,
 } from 'typeorm';
-import { IsEmail, IsEnum } from 'class-validator';
+import { IsEmail, IsEnum, IsString } from 'class-validator';
 import { AcademicYear } from '../enums/academic-year.enum';
 import { Application } from '../../applications/entities/application.entity';
 
@@ -14,29 +15,27 @@ export class Applicant {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
-  firstName: string;
-
-  @Column()
-  lastName: string;
+  @IsString()
+  @Column({ type: 'varchar' })
+  name: string;
 
   @IsEmail()
-  @Column({ unique: true })
+  @Column({ type: 'varchar', unique: true })
   email: string;
 
-  @Column()
-  graduationYear: number;
+  @Column({ type: 'int', nullable: true })
+  graduationYear: number | null;
 
   @Column({ type: 'varchar' })
   @IsEnum(AcademicYear)
   academicYear: AcademicYear;
 
-  @Column()
+  @Column({ type: 'varchar' })
   major: string;
 
   @CreateDateColumn()
   createdAt: Date;
 
   @OneToOne(() => Application, (application) => application.applicant)
-  application: Application;
+  application: Relation<Application>;
 }
