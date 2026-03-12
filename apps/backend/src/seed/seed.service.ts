@@ -60,301 +60,301 @@ const MOCK_APPLICANTS: Array<
   {
     name: 'Alex Chen',
     email: 'alex.chen@example.com',
-    graduationYear: 2026,
+
     academicYear: AcademicYear.THIRD,
     major: 'Computer Science',
   },
   {
     name: 'Jordan Patel',
     email: 'jordan.patel@example.com',
-    graduationYear: 2027,
+
     academicYear: AcademicYear.SECOND,
     major: 'Software Engineering',
   },
   {
     name: 'Morgan Liu',
     email: 'morgan.liu@example.com',
-    graduationYear: 2025,
+
     academicYear: AcademicYear.FOURTH,
     major: 'Data Science',
   },
   {
     name: 'Riley Thompson',
     email: 'riley.thompson@example.com',
-    graduationYear: 2026,
+
     academicYear: AcademicYear.THIRD,
     major: 'Computer Science',
   },
   {
     name: 'Casey Nguyen',
     email: 'casey.nguyen@example.com',
-    graduationYear: 2028,
+
     academicYear: AcademicYear.FIRST,
     major: 'Electrical Engineering',
   },
   {
     name: 'Sam Rodriguez',
     email: 'sam.rodriguez@example.com',
-    graduationYear: 2026,
+
     academicYear: AcademicYear.THIRD,
     major: 'Information Systems',
   },
   {
     name: 'Taylor Kim',
     email: 'taylor.kim@example.com',
-    graduationYear: 2027,
+
     academicYear: AcademicYear.SECOND,
     major: 'Computer Science',
   },
   {
     name: 'Drew Okafor',
     email: 'drew.okafor@example.com',
-    graduationYear: 2025,
+
     academicYear: AcademicYear.FOURTH,
     major: 'Cognitive Science',
   },
   {
     name: 'Jamie Walsh',
     email: 'jamie.walsh@example.com',
-    graduationYear: 2026,
+
     academicYear: AcademicYear.THIRD,
     major: 'Mathematics & CS',
   },
   {
     name: 'Quinn Hernandez',
     email: 'quinn.hernandez@example.com',
-    graduationYear: 2027,
+
     academicYear: AcademicYear.SECOND,
     major: 'Computer Engineering',
   },
   {
     name: 'Aisha Hassan',
     email: 'aisha.hassan@example.com',
-    graduationYear: 2026,
+
     academicYear: AcademicYear.THIRD,
     major: 'Computer Science',
   },
   {
     name: 'Benjamin Kumar',
     email: 'benjamin.kumar@example.com',
-    graduationYear: 2027,
+
     academicYear: AcademicYear.SECOND,
     major: 'Artificial Intelligence',
   },
   {
     name: 'Clara Martinez',
     email: 'clara.martinez@example.com',
-    graduationYear: 2025,
+
     academicYear: AcademicYear.FOURTH,
     major: 'Computer Science',
   },
   {
     name: 'Daniel Gao',
     email: 'daniel.gao@example.com',
-    graduationYear: 2026,
+
     academicYear: AcademicYear.THIRD,
     major: 'Software Engineering',
   },
   {
     name: 'Elena Rossi',
     email: 'elena.rossi@example.com',
-    graduationYear: 2028,
+
     academicYear: AcademicYear.FIRST,
     major: 'Information Technology',
   },
   {
     name: 'Farah Amin',
     email: 'farah.amin@example.com',
-    graduationYear: 2026,
+
     academicYear: AcademicYear.THIRD,
     major: 'Computer Science',
   },
   {
     name: 'Gabriel Santos',
     email: 'gabriel.santos@example.com',
-    graduationYear: 2027,
+
     academicYear: AcademicYear.SECOND,
     major: 'Software Engineering',
   },
   {
     name: 'Harper Chen',
     email: 'harper.chen@example.com',
-    graduationYear: 2025,
+
     academicYear: AcademicYear.FOURTH,
     major: 'Cybersecurity',
   },
   {
     name: 'Isaac Cohen',
     email: 'isaac.cohen@example.com',
-    graduationYear: 2026,
+
     academicYear: AcademicYear.THIRD,
     major: 'Computer Science',
   },
   {
     name: 'Jessica Tang',
     email: 'jessica.tang@example.com',
-    graduationYear: 2027,
+
     academicYear: AcademicYear.SECOND,
     major: 'Data Science',
   },
   {
     name: 'Kevin Hoffman',
     email: 'kevin.hoffman@example.com',
-    graduationYear: 2025,
+
     academicYear: AcademicYear.FOURTH,
     major: 'Computer Engineering',
   },
   {
     name: 'Lily Anderson',
     email: 'lily.anderson@example.com',
-    graduationYear: 2026,
+
     academicYear: AcademicYear.THIRD,
     major: 'Software Engineering',
   },
   {
     name: 'Marcus Johnson',
     email: 'marcus.johnson@example.com',
-    graduationYear: 2028,
+
     academicYear: AcademicYear.FIRST,
     major: 'Computer Science',
   },
   {
     name: 'Nina Patel',
     email: 'nina.patel@example.com',
-    graduationYear: 2026,
+
     academicYear: AcademicYear.THIRD,
     major: 'Artificial Intelligence',
   },
   {
     name: 'Oscar Garcia',
     email: 'oscar.garcia@example.com',
-    graduationYear: 2027,
+
     academicYear: AcademicYear.SECOND,
     major: 'Computer Science',
   },
   {
     name: 'Piper Lee',
     email: 'piper.lee@example.com',
-    graduationYear: 2025,
+
     academicYear: AcademicYear.FOURTH,
     major: 'Software Engineering',
   },
   {
     name: 'Raj Bansal',
     email: 'raj.bansal@example.com',
-    graduationYear: 2026,
+
     academicYear: AcademicYear.THIRD,
     major: 'Computer Science',
   },
   {
     name: 'Sophie Bauer',
     email: 'sophie.bauer@example.com',
-    graduationYear: 2027,
+
     academicYear: AcademicYear.SECOND,
     major: 'Information Systems',
   },
   {
     name: 'Thomas Murphy',
     email: 'thomas.murphy@example.com',
-    graduationYear: 2025,
+
     academicYear: AcademicYear.FOURTH,
     major: 'Computer Science',
   },
   {
     name: 'Uma Sharma',
     email: 'uma.sharma@example.com',
-    graduationYear: 2026,
+
     academicYear: AcademicYear.THIRD,
     major: 'Data Science',
   },
   {
     name: 'Victor Wolf',
     email: 'victor.wolf@example.com',
-    graduationYear: 2028,
+
     academicYear: AcademicYear.FIRST,
     major: 'Computer Engineering',
   },
   {
     name: 'Winona Clark',
     email: 'winona.clark@example.com',
-    graduationYear: 2026,
+
     academicYear: AcademicYear.THIRD,
     major: 'Software Engineering',
   },
   {
     name: 'Xavier Delgado',
     email: 'xavier.delgado@example.com',
-    graduationYear: 2027,
+
     academicYear: AcademicYear.SECOND,
     major: 'Computer Science',
   },
   {
     name: 'Yuki Tanaka',
     email: 'yuki.tanaka@example.com',
-    graduationYear: 2025,
+
     academicYear: AcademicYear.FOURTH,
     major: 'Artificial Intelligence',
   },
   {
     name: 'Zoe Patterson',
     email: 'zoe.patterson@example.com',
-    graduationYear: 2026,
+
     academicYear: AcademicYear.THIRD,
     major: 'Computer Science',
   },
   {
     name: 'Adrian Novak',
     email: 'adrian.novak@example.com',
-    graduationYear: 2027,
+
     academicYear: AcademicYear.SECOND,
     major: 'Software Engineering',
   },
   {
     name: 'Bella Zhao',
     email: 'bella.zhao@example.com',
-    graduationYear: 2025,
+
     academicYear: AcademicYear.FOURTH,
     major: 'Data Science',
   },
   {
     name: 'Connor Brady',
     email: 'connor.brady@example.com',
-    graduationYear: 2026,
+
     academicYear: AcademicYear.THIRD,
     major: 'Computer Science',
   },
   {
     name: 'Diana Foster',
     email: 'diana.foster@example.com',
-    graduationYear: 2028,
+
     academicYear: AcademicYear.FIRST,
     major: 'Information Technology',
   },
   {
     name: 'Ethan Blackwell',
     email: 'ethan.blackwell@example.com',
-    graduationYear: 2026,
+
     academicYear: AcademicYear.THIRD,
     major: 'Software Engineering',
   },
   {
     name: 'Fiona Grant',
     email: 'fiona.grant@example.com',
-    graduationYear: 2027,
+
     academicYear: AcademicYear.SECOND,
     major: 'Computer Science',
   },
   {
     name: 'Grace Holland',
     email: 'grace.holland@example.com',
-    graduationYear: 2025,
+
     academicYear: AcademicYear.FOURTH,
     major: 'Cybersecurity',
   },
   {
     name: 'Hayden Irving',
     email: 'hayden.irving@example.com',
-    graduationYear: 2026,
+
     academicYear: AcademicYear.THIRD,
     major: 'Computer Engineering',
   },
