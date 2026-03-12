@@ -11,7 +11,9 @@ import { CodingExperience } from './enums/coding-experience.enum';
 import { HearAboutC4C } from './enums/hear-about-c4c.enum';
 import { S3Service } from '../util/s3/s3.service';
 import { ApplicantsService } from '../applicants/applicants.service';
+import { Applicant } from '../applicants/entities/applicant.entity';
 import { ApplicationsService } from '../applications/applications.service';
+import { Application } from '../applications/entities/application.entity';
 
 const mockS3Service = {
   uploadResume: jest.fn(),
@@ -60,16 +62,14 @@ describe('RawGoogleFormsService', () => {
     };
 
     // Set default return values for the services
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockApplicantsService.findOrCreate.mockResolvedValue({
-      applicant: { id: 1 },
+      applicant: { id: 1 } as unknown as Applicant,
       created: true,
-    } as any);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    });
     mockApplicationsService.findOrCreate.mockResolvedValue({
-      application: { id: 1 },
+      application: { id: 1 } as unknown as Application,
       created: true,
-    } as any);
+    });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
