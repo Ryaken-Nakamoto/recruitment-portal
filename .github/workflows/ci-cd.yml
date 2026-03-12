@@ -49,7 +49,7 @@ jobs:
             cd /home/ubuntu/recruitment-portal
             git pull origin main
             yarn install --frozen-lockfile
-            node ./node_modules/nx/bin/nx.js run backend:build --configuration production
-            npm run migration:run
-            pm2 reload ecosystem.config.cjs --update-env
+            yarn nx run backend:build --configuration production
+            yarn migration:run
+            pm2 reload apps/backend/ecosystem.config.cjs --update-env
           EOF
