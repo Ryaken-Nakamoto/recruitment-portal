@@ -50,6 +50,7 @@ jobs:
             git pull origin main
             yarn install --frozen-lockfile
             yarn nx run backend:build --configuration production
+            source /etc/environment
             yarn migration:run
             pm2 reload apps/backend/ecosystem.config.cjs --update-env
           EOF
