@@ -48,7 +48,6 @@ jobs:
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
             cd /home/ubuntu/recruitment-portal
             git pull origin main
-            rm -rf node_modules
             yarn install --frozen-lockfile
             node ./node_modules/nx/bin/nx.js run backend:build --configuration production
             npm run migration:run
