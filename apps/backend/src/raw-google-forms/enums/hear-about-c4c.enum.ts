@@ -4,5 +4,4 @@ export enum HearAboutC4C {
   EVENT = 'event',
   KHOURY_WEBSITE = 'khoury_website',
   MEMBER_REFERRAL = 'member_referral',
-  OTHER = 'other',
 }

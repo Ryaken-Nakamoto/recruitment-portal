@@ -33,7 +33,6 @@ export enum CodingExperience {
   DATABASES = 'databases',
   INTERMEDIATE_DATA = 'intermediate_data',
   ADVANCED_DATA = 'advanced_data',
-  OTHER = 'other',
 }
 
 export enum HearAboutC4C {
@@ -42,7 +41,6 @@ export enum HearAboutC4C {
   EVENT = 'event',
   KHOURY_WEBSITE = 'khoury_website',
   MEMBER_REFERRAL = 'member_referral',
-  OTHER = 'other',
 }
 
 export const FormYearDisplay: Record<FormYear, string> = {
@@ -74,7 +72,6 @@ export const CodingExperienceDisplay: Record<CodingExperience, string> = {
   [CodingExperience.INTERMEDIATE_DATA]:
     'Intermediate Programming with Data (DS2500)',
   [CodingExperience.ADVANCED_DATA]: 'Advanced Programming with Data (DS3500)',
-  [CodingExperience.OTHER]: 'Other',
 };
 
 export const HearAboutC4CDisplay: Record<HearAboutC4C, string> = {
@@ -83,7 +80,6 @@ export const HearAboutC4CDisplay: Record<HearAboutC4C, string> = {
   [HearAboutC4C.EVENT]: 'Event (info session, demo day, fall fest, etc.)',
   [HearAboutC4C.KHOURY_WEBSITE]: 'Khoury/Northeastern Website',
   [HearAboutC4C.MEMBER_REFERRAL]: 'Member Referral',
-  [HearAboutC4C.OTHER]: 'Other',
 };
 
 export interface RawGoogleFormDto {

@@ -8,5 +8,4 @@ export enum CodingExperience {
   DATABASES = 'databases',
   INTERMEDIATE_DATA = 'intermediate_data',
   ADVANCED_DATA = 'advanced_data',
-  OTHER = 'other',
 }

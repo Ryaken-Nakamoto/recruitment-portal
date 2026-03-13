@@ -184,7 +184,6 @@ const MOCK_GOOGLE_FORMS: SubmitGoogleFormDto[] = [
     codingExperience: [
       CodingExperience.WEB_DEVELOPMENT,
       CodingExperience.DATABASES,
-      CodingExperience.OTHER,
     ],
     codingExperienceOther:
       'Self-taught React and Node.js through online courses',
@@ -277,11 +276,7 @@ const MOCK_GOOGLE_FORMS: SubmitGoogleFormDto[] = [
     year: FormYear.SECOND,
     college: College.ENGINEERING,
     major: 'Computer Engineering',
-    codingExperience: [
-      CodingExperience.FUNDIES_1,
-      CodingExperience.FUNDIES_2,
-      CodingExperience.OTHER,
-    ],
+    codingExperience: [CodingExperience.FUNDIES_1, CodingExperience.FUNDIES_2],
     codingExperienceOther: 'Embedded systems programming in C',
     resumeUrl: MOCK_RESUME_URL,
     whyC4C:
