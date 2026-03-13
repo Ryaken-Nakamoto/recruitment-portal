@@ -49,8 +49,8 @@ jobs:
             cd /home/ubuntu/recruitment-portal
             git pull origin main
             yarn install --frozen-lockfile --production=false
-            yarn nx run backend:build --configuration production
-            yarn nx run frontend:build --configuration production
+            yarn nx run backend:build --configuration production --skip-nx-cache
+            yarn nx run frontend:build --configuration production --skip-nx-cache
             source /etc/environment
             yarn migration:run
             sudo rm -rf /var/www/frontend
