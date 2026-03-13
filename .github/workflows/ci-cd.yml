@@ -48,7 +48,7 @@ jobs:
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
             cd /home/ubuntu/recruitment-portal
             git pull origin main
-            yarn install --frozen-lockfile
+            yarn install --frozen-lockfile --production=false
             yarn nx run backend:build --configuration production
             yarn nx run frontend:build --configuration production
             source /etc/environment
