@@ -24,7 +24,6 @@ export class ApplicationDetailRawGoogleFormDto {
   major: string;
   codingExperience: CodingExperience[];
   codingExperienceOther: string | null;
-  resumeUrl: string;
   whyC4C: string;
   selfStartedProject: string | null;
   communityImpact: string | null;

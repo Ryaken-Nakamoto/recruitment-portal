@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository, Relation } from 'typeorm';
+import { Readable } from 'stream';
 
 import { ApplicationsService } from './applications.service';
 import { Application } from './entities/application.entity';
@@ -12,10 +13,12 @@ import { RoundStatus } from './enums/round-status.enum';
 import { FormYear } from '../raw-google-forms/enums/form-year.enum';
 import { College } from '../raw-google-forms/enums/college.enum';
 import { NotFoundException } from '@nestjs/common';
+import { S3Service } from '../util/s3/s3.service';
 
 describe('ApplicationsService', () => {
   let service: ApplicationsService;
   let applicationRepo: jest.Mocked<Repository<Application>>;
+  let mockS3Service: { getResume: jest.Mock };
 
   beforeEach(async () => {
     const mockApplicationRepo = {
@@ -25,12 +28,18 @@ describe('ApplicationsService', () => {
       findAndCount: jest.fn(),
     };
 
+    mockS3Service = { getResume: jest.fn() };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ApplicationsService,
         {
           provide: getRepositoryToken(Application),
           useValue: mockApplicationRepo,
+        },
+        {
+          provide: S3Service,
+          useValue: mockS3Service,
         },
       ],
     }).compile();
@@ -273,15 +282,80 @@ describe('ApplicationsService', () => {
       expect(result.applicant.name).toBe('Alice Smith');
       expect(result.applicant.email).toBe('test@example.com');
       expect(result.rawGoogleForm.whyC4C).toBe('I want to help');
-      expect(result.rawGoogleForm.resumeUrl).toBe(
-        'https://example.com/resume.pdf',
-      );
     });
 
     it('throws NotFoundException when application not found', async () => {
       applicationRepo.findOne.mockResolvedValue(null);
 
       await expect(service.findOneDetail(999)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('getResumeStream', () => {
+    const mockApplicant: Applicant = {
+      id: 1,
+      email: 'test@example.com',
+      name: 'Alice Smith',
+      major: 'CS',
+      academicYear: AcademicYear.FIRST,
+      createdAt: new Date(),
+      application: undefined as unknown as Relation<Application>,
+    };
+
+    const mockRawForm: RawGoogleForm = {
+      id: 1,
+      email: 'test@example.com',
+      fullName: 'Alice Smith',
+      year: FormYear.FIRST,
+      college: College.ENGINEERING,
+      major: 'CS',
+      codingExperience: [],
+      codingExperienceOther: null,
+      resumeUrl:
+        'https://bucket.s3.us-east-1.amazonaws.com/resumes/4491c8c4-e632-4895-834d-886b5b681117-abc-resume.pdf',
+      whyC4C: 'I want to help',
+      selfStartedProject: null,
+      communityImpact: null,
+      teamConflict: null,
+      otherExperiences: null,
+      heardAboutC4C: [],
+      heardAboutC4COther: null,
+      appliedBefore: 'no',
+      fallCommitments: 'Full time',
+      questionsOrConcerns: null,
+      submittedAt: new Date(),
+      application: undefined as unknown as Relation<Application>,
+    };
+
+    it('returns stream and filename for valid application', async () => {
+      const fakeStream = Readable.from(['pdf']);
+      const mockApp: Application = {
+        id: 1,
+        applicant: mockApplicant,
+        rawGoogleForm: mockRawForm,
+        round: ApplicationRound.SCREENING,
+        roundStatus: RoundStatus.PENDING,
+        finalDecision: null,
+        submittedAt: new Date(),
+      };
+      applicationRepo.findOne.mockResolvedValue(mockApp);
+      mockS3Service.getResume.mockResolvedValue(fakeStream);
+
+      const result = await service.getResumeStream(1);
+
+      expect(mockS3Service.getResume).toHaveBeenCalledWith(
+        'resumes/4491c8c4-e632-4895-834d-886b5b681117-abc-resume.pdf',
+      );
+      expect(result.stream).toBe(fakeStream);
+      expect(result.filename).toBe('abc-resume.pdf');
+    });
+
+    it('throws NotFoundException when application not found', async () => {
+      applicationRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.getResumeStream(999)).rejects.toThrow(
         NotFoundException,
       );
     });

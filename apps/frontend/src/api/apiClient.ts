@@ -162,6 +162,25 @@ export class ApiClient {
     ) as Promise<User>;
   }
 
+  public async downloadResume(applicationId: number): Promise<void> {
+    const response = await this.axiosInstance.get(
+      `/api/admin/applications/${applicationId}/resume`,
+      { responseType: 'blob' },
+    );
+    const disposition =
+      (response.headers['content-disposition'] as string) ?? '';
+    const match = disposition.match(/filename="([^"]+)"/);
+    const filename = match ? match[1] : 'resume.pdf';
+    const url = URL.createObjectURL(response.data as Blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   private async get(path: string): Promise<unknown> {
     return this.axiosInstance.get(path).then((response) => response.data);
   }

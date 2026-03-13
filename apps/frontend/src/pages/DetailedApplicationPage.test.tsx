@@ -20,6 +20,7 @@ import type { ApplicationDetailResponse } from '@api/dtos/application-detail.dto
 vi.mock('@api/apiClient', () => ({
   default: {
     getApplicationDetail: vi.fn(),
+    downloadResume: vi.fn(),
   },
 }));
 
@@ -67,7 +68,6 @@ const fullMockData: ApplicationDetailResponse = {
     major: 'CS',
     codingExperience: [CodingExperience.FUNDIES_1, CodingExperience.OOD],
     codingExperienceOther: null,
-    resumeUrl: 'https://s3.example.com/resume.pdf',
     whyC4C: 'I want to make a difference',
     selfStartedProject: 'Built a todo app',
     communityImpact: 'Volunteered at food bank',

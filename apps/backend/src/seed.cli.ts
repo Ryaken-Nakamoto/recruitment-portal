@@ -33,7 +33,10 @@ async function runSeed() {
 
     // Create dependent services
     const applicantsService = new ApplicantsService(applicantRepo);
-    const applicationsService = new ApplicationsService(applicationRepo);
+    const applicationsService = new ApplicationsService(
+      applicationRepo,
+      null as unknown as never, // S3Service not needed for seeding
+    );
     const rawGoogleFormsService = new RawGoogleFormsService(
       rawGoogleFormRepo,
       null as unknown as never, // S3Service not needed for seeding

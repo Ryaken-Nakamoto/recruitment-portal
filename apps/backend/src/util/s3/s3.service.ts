@@ -1,5 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+} from '@aws-sdk/client-s3';
+import { Readable } from 'stream';
 
 @Injectable()
 export class S3Service {
@@ -29,6 +34,19 @@ export class S3Service {
       return url;
     } catch (error) {
       this.logger.error(`Failed to upload resume to S3: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async getResume(key: string): Promise<Readable> {
+    try {
+      const response = await this.client.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      this.logger.log(`Resume fetched from S3: ${key}`);
+      return response.Body as Readable;
+    } catch (error) {
+      this.logger.error(`Failed to fetch resume from S3: ${error.message}`);
       throw error;
     }
   }

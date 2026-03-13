@@ -171,7 +171,7 @@ const DetailedApplicationPage: React.FC = () => {
             </Typography>
           </Grid>
           <Grid size={{ xs: 12 }}>
-            <ResumeDownloadCard resumeUrl={rawGoogleForm.resumeUrl} />
+            <ResumeDownloadCard applicationId={data.id} />
           </Grid>
         </Grid>
       </Paper>

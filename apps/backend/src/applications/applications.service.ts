@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Readable } from 'stream';
 import { Application } from './entities/application.entity';
 import { Applicant } from '../applicants/entities/applicant.entity';
 import { RawGoogleForm } from '../raw-google-forms/entities/raw-google-form.entity';
@@ -9,6 +10,7 @@ import {
   ApplicationsListResponseDto,
 } from './dto/application-list-item.dto';
 import { ApplicationDetailDto } from './dto/application-detail.dto';
+import { S3Service } from '../util/s3/s3.service';
 
 @Injectable()
 export class ApplicationsService {
@@ -17,6 +19,7 @@ export class ApplicationsService {
   constructor(
     @InjectRepository(Application)
     private readonly applicationRepository: Repository<Application>,
+    private readonly s3Service: S3Service,
   ) {}
 
   /**
@@ -87,7 +90,6 @@ export class ApplicationsService {
         major: rawForm.major,
         codingExperience: rawForm.codingExperience,
         codingExperienceOther: rawForm.codingExperienceOther,
-        resumeUrl: rawForm.resumeUrl,
         whyC4C: rawForm.whyC4C,
         selfStartedProject: rawForm.selfStartedProject,
         communityImpact: rawForm.communityImpact,
@@ -144,5 +146,32 @@ export class ApplicationsService {
       page,
       totalPages,
     };
+  }
+
+  async getResumeStream(
+    id: number,
+  ): Promise<{ stream: Readable; filename: string }> {
+    const application = await this.applicationRepository.findOne({
+      where: { id },
+      relations: ['rawGoogleForm'],
+    });
+
+    if (!application) {
+      throw new NotFoundException(`Application with id ${id} not found`);
+    }
+
+    const rawForm = application.rawGoogleForm as RawGoogleForm;
+    const key = decodeURIComponent(
+      new URL(rawForm.resumeUrl).pathname.slice(1),
+    );
+    const rawFilename = key.split('/').pop() ?? 'resume.pdf';
+    // Strip the UUID prefix (format: "uuid-originalname")
+    const filename =
+      rawFilename.replace(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/,
+        '',
+      ) || rawFilename;
+    const stream = await this.s3Service.getResume(key);
+    return { stream, filename };
   }
 }

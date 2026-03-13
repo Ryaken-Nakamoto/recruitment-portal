@@ -1,21 +1,35 @@
+import { useState } from 'react';
 import { Card, CardActionArea, Box, Typography } from '@mui/material';
 import DescriptionIcon from '@mui/icons-material/Description';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import DownloadIcon from '@mui/icons-material/Download';
+import apiClient from '@api/apiClient';
 
 interface ResumeDownloadCardProps {
-  resumeUrl: string;
+  applicationId: number;
 }
 
 const ResumeDownloadCard: React.FC<ResumeDownloadCardProps> = ({
-  resumeUrl,
+  applicationId,
 }) => {
-  const handleClick = () => {
-    window.open(resumeUrl, '_blank');
+  const [loading, setLoading] = useState(false);
+
+  const handleClick = async () => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      await apiClient.downloadResume(applicationId);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <Card variant="outlined" sx={{ maxWidth: 280 }}>
-      <CardActionArea onClick={handleClick} data-testid="resume-download-btn">
+      <CardActionArea
+        onClick={handleClick}
+        disabled={loading}
+        data-testid="resume-download-btn"
+      >
         <Box
           sx={{
             display: 'flex',
@@ -28,7 +42,7 @@ const ResumeDownloadCard: React.FC<ResumeDownloadCardProps> = ({
           <Typography variant="body1" sx={{ flexGrow: 1 }}>
             Resume
           </Typography>
-          <OpenInNewIcon fontSize="small" color="action" />
+          <DownloadIcon fontSize="small" color="action" />
         </Box>
       </CardActionArea>
     </Card>
