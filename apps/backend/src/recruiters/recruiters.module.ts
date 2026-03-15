@@ -14,6 +14,7 @@ import { InterviewReview } from '../applications/entities/interview-review.entit
 import { InterviewReviewScore } from '../applications/entities/interview-review-score.entity';
 import { InterviewReviewApproval } from '../applications/entities/interview-review-approval.entity';
 import { ScreeningCriteria } from '../rubrics/entities/screening-criteria.entity';
+import { ScreeningRubric } from '../rubrics/entities/screening-rubric.entity';
 import { InterviewCriteria } from '../rubrics/entities/interview-criteria.entity';
 
 @Module({
@@ -28,6 +29,7 @@ import { InterviewCriteria } from '../rubrics/entities/interview-criteria.entity
       InterviewReviewScore,
       InterviewReviewApproval,
       ScreeningCriteria,
+      ScreeningRubric,
       InterviewCriteria,
     ]),
   ],

@@ -17,6 +17,7 @@ import { Assignment } from '../applications/entities/assignment.entity';
 import { ScreeningReview } from '../applications/entities/screening-review.entity';
 import { InterviewReview } from '../applications/entities/interview-review.entity';
 import { Email } from '../emails/entities/email.entity';
+import { SentEmail } from '../emails/entities/sent-email.entity';
 import { UtilModule } from '../util/util.module';
 import { ScreeningReviewScore } from '../applications/entities/screening-review-score.entity';
 
@@ -32,6 +33,7 @@ import { ScreeningReviewScore } from '../applications/entities/screening-review-
       ScreeningReviewScore,
       InterviewReview,
       Email,
+      SentEmail,
     ]),
     UtilModule,
   ],

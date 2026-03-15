@@ -1,8 +1,10 @@
 import { StrictMode } from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ThemeProvider, CssBaseline } from '@mui/material';
 
 import App from './app';
+import theme from './theme';
 
 const queryClient = new QueryClient();
 
@@ -11,8 +13,11 @@ const root = ReactDOM.createRoot(
 );
 root.render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
+    </ThemeProvider>
   </StrictMode>,
 );

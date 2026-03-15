@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -6,9 +7,11 @@ import {
   CardContent,
   Chip,
   CircularProgress,
+  IconButton,
   Stack,
   Typography,
 } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '@api/apiClient';
 import { FinalDecision } from '@api/dtos/enums';
@@ -60,6 +63,7 @@ function EmailCard({
 }
 
 const EmailsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [selected, setSelected] = useState<EmailDto | null>(null);
 
   const {
@@ -100,6 +104,23 @@ const EmailsPage: React.FC = () => {
 
   return (
     <Box p={4}>
+      <Box sx={{ mb: 2 }}>
+        <IconButton
+          onClick={() => navigate('/admin/home')}
+          sx={{ mr: 1 }}
+          aria-label="back"
+        >
+          <ArrowBackIcon />
+        </IconButton>
+        <Typography
+          variant="caption"
+          component="span"
+          sx={{ cursor: 'pointer' }}
+          onClick={() => navigate('/admin/home')}
+        >
+          Back to Home
+        </Typography>
+      </Box>
       <Typography variant="h5" fontWeight="bold" mb={3}>
         Email Templates
       </Typography>

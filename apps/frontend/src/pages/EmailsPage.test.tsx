@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import apiClient from '@api/apiClient';
 import EmailsPage from './EmailsPage';
@@ -43,9 +44,11 @@ const renderPage = () => {
     defaultOptions: { queries: { retry: false } },
   });
   render(
-    <QueryClientProvider client={client}>
-      <EmailsPage />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={client}>
+        <EmailsPage />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 };
 
@@ -70,7 +73,7 @@ describe('EmailsPage', () => {
 
   it('renders 6 email cards on success', async () => {
     mockGetEmails.mockResolvedValue(SIX_EMAILS);
-    mockGetEmailVariables.mockResolvedValue(['firstName', 'lastName']);
+    mockGetEmailVariables.mockResolvedValue(['firstName']);
     renderPage();
     // Each card shows the email name
     for (const email of SIX_EMAILS) {

@@ -5,22 +5,57 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 
 import { Application } from '../applications/entities/application.entity';
 import { Applicant } from '../applicants/entities/applicant.entity';
 import { Email } from '../emails/entities/email.entity';
+import { SentEmail } from '../emails/entities/sent-email.entity';
 import { ApplicationRound } from '../applications/enums/application-round.enum';
 import { RoundStatus } from '../applications/enums/round-status.enum';
 import { FinalDecision } from '../applications/enums/final-decision.enum';
 import { AdminDecision } from '../applications/enums/admin-decision.enum';
 import { MakeDecisionDto } from './dto/make-decision.dto';
+import { BulkDecideDto } from './dto/bulk-decide.dto';
+import { EmailPreviewDto } from './dto/email-preview.dto';
+import { SendEmailDto } from './dto/send-email.dto';
+import { SesService } from '../util/ses/ses.service';
 
 const ROUND_ORDER: ApplicationRound[] = [
   ApplicationRound.SCREENING,
   ApplicationRound.TECHNICAL_INTERVIEW,
   ApplicationRound.BEHAVIORAL_INTERVIEW,
 ];
+
+export interface SentEmailListItemDto {
+  id: number;
+  applicationId: number;
+  toEmail: string;
+  fromEmail: string;
+  subject: string;
+  applicationStage: ApplicationRound;
+  finalDecision: FinalDecision | null;
+  sentAt: Date;
+}
+
+export interface SentEmailDetailDto {
+  id: number;
+  applicationId: number;
+  toEmail: string;
+  fromEmail: string;
+  subject: string;
+  body: string;
+  applicationStage: ApplicationRound;
+  finalDecision: FinalDecision | null;
+  sentAt: Date;
+}
+
+export interface SentEmailsListResponse {
+  data: SentEmailListItemDto[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
 
 @Injectable()
 export class AdminDecisionsService {
@@ -31,7 +66,62 @@ export class AdminDecisionsService {
     private readonly applicationRepo: Repository<Application>,
     @InjectRepository(Email)
     private readonly emailRepo: Repository<Email>,
+    @InjectRepository(SentEmail)
+    private readonly sentEmailRepo: Repository<SentEmail>,
+    private readonly sesService: SesService,
   ) {}
+
+  async bulkDecide(dto: BulkDecideDto): Promise<{
+    succeeded: number[];
+    failed: Array<{ id: number; applicantName: string; reason: string }>;
+  }> {
+    if (dto.applicationIds.length === 0) {
+      return { succeeded: [], failed: [] };
+    }
+
+    const apps = await this.applicationRepo.find({
+      where: { id: In(dto.applicationIds) },
+      relations: ['applicant'],
+    });
+
+    const succeeded: number[] = [];
+    const failed: Array<{ id: number; applicantName: string; reason: string }> =
+      [];
+    const successfulApps: Application[] = [];
+
+    for (const app of apps) {
+      const applicant = app.applicant as Applicant;
+      if (app.roundStatus !== RoundStatus.AWAITING_ADMIN) {
+        failed.push({
+          id: app.id,
+          applicantName: applicant.name,
+          reason: `Application is not in Awaiting Admin state (current: ${app.roundStatus})`,
+        });
+        continue;
+      }
+
+      if (dto.decision === AdminDecision.ADVANCE) {
+        app.finalDecision = null;
+      } else if (dto.decision === AdminDecision.REJECT) {
+        app.finalDecision = FinalDecision.REJECTED;
+      } else {
+        app.finalDecision = FinalDecision.ACCEPTED;
+      }
+      app.roundStatus = RoundStatus.PENDING_EMAIL;
+      succeeded.push(app.id);
+      successfulApps.push(app);
+    }
+
+    if (successfulApps.length > 0) {
+      await this.applicationRepo.save(successfulApps);
+    }
+
+    this.logger.log(
+      `Bulk decision: ${succeeded.length} succeeded, ${failed.length} failed`,
+    );
+
+    return { succeeded, failed };
+  }
 
   async makeDecision(
     applicationId: number,
@@ -64,7 +154,7 @@ export class AdminDecisionsService {
     );
   }
 
-  async sendEmail(applicationId: number): Promise<void> {
+  async getEmailPreview(applicationId: number): Promise<EmailPreviewDto> {
     const application = await this.applicationRepo.findOne({
       where: { id: applicationId },
       relations: ['applicant'],
@@ -78,7 +168,6 @@ export class AdminDecisionsService {
       );
     }
 
-    // Look up the email template for this round + decision
     const templateDecision =
       application.finalDecision ?? FinalDecision.ACCEPTED;
     const template = await this.emailRepo.findOne({
@@ -93,28 +182,66 @@ export class AdminDecisionsService {
       );
     }
 
-    // Render template with auto-variables + custom defaults
     const applicant = application.applicant as Applicant;
     const rendered = this.renderTemplate(template.subject, template.body, {
-      ...template.defaultContext,
       firstName: applicant.name.split(' ')[0],
-      lastName: applicant.name.split(' ').slice(1).join(' '),
     });
 
-    // TODO: integrate with SES/nodemailer for actual delivery
+    return {
+      templateId: template.id,
+      toEmail: applicant.email,
+      fromEmail: process.env.SENDER_EMAIL ?? '',
+      subject: rendered.subject,
+      body: rendered.body,
+    };
+  }
+
+  async sendEmail(applicationId: number, dto: SendEmailDto): Promise<void> {
+    const application = await this.applicationRepo.findOne({
+      where: { id: applicationId },
+      relations: ['applicant'],
+    });
+    if (!application) {
+      throw new NotFoundException(`Application ${applicationId} not found`);
+    }
+    if (application.roundStatus !== RoundStatus.PENDING_EMAIL) {
+      throw new BadRequestException(
+        `Application must be in PENDING_EMAIL state (current: ${application.roundStatus})`,
+      );
+    }
+
+    const applicant = application.applicant as Applicant;
+    const fromEmail = process.env.SENDER_EMAIL ?? '';
+
+    await this.sesService.sendEmail({
+      to: applicant.email,
+      from: fromEmail,
+      subject: dto.subject,
+      body: dto.body,
+    });
+
+    const sentEmail = this.sentEmailRepo.create({
+      applicationId: application.id,
+      toEmail: applicant.email,
+      fromEmail,
+      subject: dto.subject,
+      body: dto.body,
+      applicationStage: application.round,
+      finalDecision: application.finalDecision,
+    });
+    await this.sentEmailRepo.save(sentEmail);
+
     this.logger.log(
-      `Sending email to ${applicant.email} — subject: "${rendered.subject}"`,
+      `Email sent to ${applicant.email} — subject: "${dto.subject}"`,
     );
 
     // Transition state based on outcome
     if (application.finalDecision !== null) {
-      // Rejected or accepted → terminal state
       application.roundStatus = RoundStatus.EMAIL_SENT;
       this.logger.log(
         `Application ${applicationId} transitioned to EMAIL_SENT (${application.finalDecision})`,
       );
     } else {
-      // Advancing to next round
       application.round = this.getNextRound(application.round);
       application.roundStatus = RoundStatus.PENDING;
       this.logger.log(
@@ -123,6 +250,53 @@ export class AdminDecisionsService {
     }
 
     await this.applicationRepo.save(application);
+  }
+
+  async getSentEmails(
+    page: number,
+    limit: number,
+  ): Promise<SentEmailsListResponse> {
+    const [emails, total] = await this.sentEmailRepo.findAndCount({
+      order: { sentAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    const data: SentEmailListItemDto[] = emails.map((e) => ({
+      id: e.id,
+      applicationId: e.applicationId,
+      toEmail: e.toEmail,
+      fromEmail: e.fromEmail,
+      subject: e.subject,
+      applicationStage: e.applicationStage,
+      finalDecision: e.finalDecision,
+      sentAt: e.sentAt,
+    }));
+
+    return {
+      data,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async getSentEmail(id: number): Promise<SentEmailDetailDto> {
+    const email = await this.sentEmailRepo.findOne({ where: { id } });
+    if (!email) {
+      throw new NotFoundException(`Sent email ${id} not found`);
+    }
+    return {
+      id: email.id,
+      applicationId: email.applicationId,
+      toEmail: email.toEmail,
+      fromEmail: email.fromEmail,
+      subject: email.subject,
+      body: email.body,
+      applicationStage: email.applicationStage,
+      finalDecision: email.finalDecision,
+      sentAt: email.sentAt,
+    };
   }
 
   private getNextRound(current: ApplicationRound): ApplicationRound {

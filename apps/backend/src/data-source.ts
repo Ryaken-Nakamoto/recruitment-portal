@@ -17,6 +17,7 @@ import { InterviewReview } from './applications/entities/interview-review.entity
 import { InterviewReviewScore } from './applications/entities/interview-review-score.entity';
 import { InterviewReviewApproval } from './applications/entities/interview-review-approval.entity';
 import { RawGoogleForm } from './raw-google-forms/entities/raw-google-form.entity';
+import { SentEmail } from './emails/entities/sent-email.entity';
 import * as dotenv from 'dotenv';
 
 // Only load .env file in local development
@@ -50,6 +51,7 @@ const AppDataSource = new DataSource({
     InterviewReviewScore,
     InterviewReviewApproval,
     RawGoogleForm,
+    SentEmail,
   ],
   migrations: ['apps/backend/src/migrations/*.ts'],
   // Setting synchronize: true shouldn't be used in production - otherwise you can lose production data

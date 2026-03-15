@@ -17,6 +17,7 @@ import { InterviewReview } from '../../applications/entities/interview-review.en
 import { InterviewReviewScore } from '../../applications/entities/interview-review-score.entity';
 import { InterviewReviewApproval } from '../../applications/entities/interview-review-approval.entity';
 import { ScreeningCriteria } from '../../rubrics/entities/screening-criteria.entity';
+import { ScreeningRubric } from '../../rubrics/entities/screening-rubric.entity';
 import { InterviewCriteria } from '../../rubrics/entities/interview-criteria.entity';
 import { InterviewReviewStatus } from '../../applications/enums/interview-review-status.enum';
 import { RoundStatus } from '../../applications/enums/round-status.enum';
@@ -52,6 +53,7 @@ describe('RecruitersReviewService', () => {
   let interviewReviewScoreRepo: MockRepo<InterviewReviewScore>;
   let interviewReviewApprovalRepo: MockRepo<InterviewReviewApproval>;
   let screeningCriteriaRepo: MockRepo<ScreeningCriteria>;
+  let screeningRubricRepo: MockRepo<ScreeningRubric>;
   let interviewCriteriaRepo: MockRepo<InterviewCriteria>;
 
   const recruiter = { id: 1 } as Recruiter;
@@ -65,6 +67,7 @@ describe('RecruitersReviewService', () => {
     interviewReviewScoreRepo = createMockRepo<InterviewReviewScore>();
     interviewReviewApprovalRepo = createMockRepo<InterviewReviewApproval>();
     screeningCriteriaRepo = createMockRepo<ScreeningCriteria>();
+    screeningRubricRepo = createMockRepo<ScreeningRubric>();
     interviewCriteriaRepo = createMockRepo<InterviewCriteria>();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -97,6 +100,10 @@ describe('RecruitersReviewService', () => {
           useValue: screeningCriteriaRepo,
         },
         {
+          provide: getRepositoryToken(ScreeningRubric),
+          useValue: screeningRubricRepo,
+        },
+        {
           provide: getRepositoryToken(InterviewCriteria),
           useValue: interviewCriteriaRepo,
         },
@@ -126,7 +133,9 @@ describe('RecruitersReviewService', () => {
     it('returns paginated data with total and totalPages', async () => {
       const assignment = makeAssignment(1, ApplicationRound.SCREENING);
       assignmentRepo.findAndCount!.mockResolvedValue([[assignment], 1]);
+      assignmentRepo.find!.mockResolvedValue([assignment]);
       screeningReviewRepo.findOne!.mockResolvedValue(null);
+      screeningReviewRepo.count!.mockResolvedValue(0);
 
       const result = await service.listAssignments(recruiter, 1, 20);
 
@@ -139,7 +148,9 @@ describe('RecruitersReviewService', () => {
     it('includes applicantName, round, and reviewStatus in each item', async () => {
       const assignment = makeAssignment(1, ApplicationRound.SCREENING);
       assignmentRepo.findAndCount!.mockResolvedValue([[assignment], 1]);
+      assignmentRepo.find!.mockResolvedValue([assignment]);
       screeningReviewRepo.findOne!.mockResolvedValue(null);
+      screeningReviewRepo.count!.mockResolvedValue(0);
 
       const result = await service.listAssignments(recruiter, 1, 20);
 
@@ -151,9 +162,11 @@ describe('RecruitersReviewService', () => {
     it('returns reviewStatus "submitted" for a completed screening review', async () => {
       const assignment = makeAssignment(1, ApplicationRound.SCREENING);
       assignmentRepo.findAndCount!.mockResolvedValue([[assignment], 1]);
+      assignmentRepo.find!.mockResolvedValue([assignment]);
       screeningReviewRepo.findOne!.mockResolvedValue({
         id: 5,
       } as unknown as ScreeningReview);
+      screeningReviewRepo.count!.mockResolvedValue(1);
 
       const result = await service.listAssignments(recruiter, 1, 20);
 
@@ -894,6 +907,197 @@ describe('RecruitersReviewService', () => {
       expect(interviewReviewApprovalRepo.delete).toHaveBeenCalledWith({
         review: { id: 20 },
       });
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────
+  // getAssignmentDetail
+  // ──────────────────────────────────────────────────────────────────────
+  describe('getAssignmentDetail', () => {
+    const mockAssignment = {
+      id: 5,
+      notes: 'some notes',
+      application: {
+        id: 10,
+        round: ApplicationRound.SCREENING,
+        roundStatus: RoundStatus.IN_PROGRESS,
+        finalDecision: null,
+        submittedAt: new Date(),
+        applicant: {
+          name: 'Alice Smith',
+          email: 'alice@example.com',
+          major: 'CS',
+          academicYear: 'first',
+        },
+        rawGoogleForm: {
+          whyC4C: 'I care',
+          selfStartedProject: 'project',
+          communityImpact: 'impact',
+          teamConflict: 'conflict',
+          otherExperiences: 'other',
+        },
+      },
+    } as unknown as Assignment;
+
+    it('throws NotFoundException when assignment does not belong to recruiter', async () => {
+      assignmentRepo.findOne!.mockResolvedValue(null);
+      await expect(service.getAssignmentDetail(99, recruiter)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('returns assignment detail with rubric criteria', async () => {
+      assignmentRepo.findOne!.mockResolvedValue(mockAssignment);
+      screeningReviewRepo.findOne!.mockResolvedValue(null);
+      screeningRubricRepo.find!.mockResolvedValue([
+        {
+          id: 1,
+          name: 'Rubric 1',
+          criteria: [
+            {
+              id: 10,
+              name: 'Skill',
+              oneDescription: 'Meh',
+              twoDescription: 'Nice',
+              threeDescription: 'Amazing',
+            },
+          ],
+        },
+      ] as ScreeningRubric[]);
+
+      const result = await service.getAssignmentDetail(5, recruiter);
+
+      expect(result.assignmentId).toBe(5);
+      expect(result.notes).toBe('some notes');
+      expect(result.reviewStatus).toBe('not_started');
+      expect(result.rubricCriteria).toHaveLength(1);
+      expect(result.rubricCriteria[0].name).toBe('Skill');
+    });
+
+    it('returns reviewStatus "submitted" when screening review exists', async () => {
+      assignmentRepo.findOne!.mockResolvedValue(mockAssignment);
+      screeningReviewRepo.findOne!.mockResolvedValue({
+        id: 7,
+        scores: [],
+      } as unknown as ScreeningReview);
+      screeningRubricRepo.find!.mockResolvedValue([]);
+
+      const result = await service.getAssignmentDetail(5, recruiter);
+
+      expect(result.reviewStatus).toBe('submitted');
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────
+  // getCoReviewers
+  // ──────────────────────────────────────────────────────────────────────
+  describe('getCoReviewers', () => {
+    const makeAssignment = (
+      id: number,
+      firstName: string,
+      lastName: string,
+    ) => ({
+      id,
+      recruiter: { id: id * 10, firstName, lastName },
+    });
+
+    it('throws NotFoundException when recruiter is not assigned to the application', async () => {
+      assignmentRepo.findOne!.mockResolvedValue(null);
+
+      await expect(service.getCoReviewers(42, recruiter)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('returns co-reviewer list when recruiter is assigned', async () => {
+      const callerAssignment = { id: 1 };
+      assignmentRepo.findOne!.mockResolvedValue(callerAssignment);
+      assignmentRepo.find!.mockResolvedValue([
+        makeAssignment(1, 'Alice', 'Smith'),
+        makeAssignment(2, 'Bob', 'Jones'),
+      ]);
+      screeningReviewRepo.find!.mockResolvedValue([]);
+
+      const result = await service.getCoReviewers(5, recruiter);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].recruiterName).toBe('Alice Smith');
+      expect(result[1].recruiterName).toBe('Bob Jones');
+    });
+
+    it('sets reviewStatus "submitted" for assignments with a screening review', async () => {
+      const callerAssignment = { id: 1 };
+      assignmentRepo.findOne!.mockResolvedValue(callerAssignment);
+      assignmentRepo.find!.mockResolvedValue([
+        makeAssignment(1, 'Alice', 'Smith'),
+        makeAssignment(2, 'Bob', 'Jones'),
+      ]);
+      screeningReviewRepo.find!.mockResolvedValue([
+        { id: 99, assignment: { id: 1 } } as unknown as ScreeningReview,
+      ]);
+
+      const result = await service.getCoReviewers(5, recruiter);
+
+      expect(result.find((r) => r.assignmentId === 1)?.reviewStatus).toBe(
+        'submitted',
+      );
+      expect(result.find((r) => r.assignmentId === 2)?.reviewStatus).toBe(
+        'not_started',
+      );
+    });
+
+    it('returns empty array when no assignments exist for the application (caller removed race condition)', async () => {
+      assignmentRepo.findOne!.mockResolvedValue({ id: 1 });
+      assignmentRepo.find!.mockResolvedValue([]);
+      screeningReviewRepo.find!.mockResolvedValue([]);
+
+      const result = await service.getCoReviewers(5, recruiter);
+
+      expect(result).toHaveLength(0);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────
+  // updateNotes
+  // ──────────────────────────────────────────────────────────────────────
+  describe('updateNotes', () => {
+    it('throws NotFoundException when assignment does not belong to recruiter', async () => {
+      assignmentRepo.findOne!.mockResolvedValue(null);
+      await expect(
+        service.updateNotes(99, 'some notes', recruiter),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('saves notes and returns updated assignment id and notes', async () => {
+      const mockAssignment = { id: 5, notes: null } as Assignment;
+      assignmentRepo.findOne!.mockResolvedValue(mockAssignment);
+      assignmentRepo.save!.mockResolvedValue({
+        ...mockAssignment,
+        notes: 'new notes',
+      });
+
+      const result = await service.updateNotes(5, 'new notes', recruiter);
+
+      expect(assignmentRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ notes: 'new notes' }),
+      );
+      expect(result).toEqual({ assignmentId: 5, notes: 'new notes' });
+    });
+
+    it('saves null notes to clear them', async () => {
+      const mockAssignment = { id: 5, notes: 'old notes' } as Assignment;
+      assignmentRepo.findOne!.mockResolvedValue(mockAssignment);
+      assignmentRepo.save!.mockResolvedValue({
+        ...mockAssignment,
+        notes: null,
+      });
+
+      const result = await service.updateNotes(5, null, recruiter);
+
+      expect(assignmentRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ notes: null }),
+      );
+      expect(result).toEqual({ assignmentId: 5, notes: null });
     });
   });
 });

@@ -42,6 +42,12 @@ export class AdminRecruitersController {
     );
   }
 
+  @Get(':id')
+  @Auth(Role.ADMIN)
+  getRecruiterDetail(@Param('id', ParseIntPipe) id: number) {
+    return this.adminRecruitersService.getRecruiterDetail(id);
+  }
+
   @Patch(':id/deactivate')
   @Auth(Role.ADMIN)
   deactivateRecruiter(@Param('id', ParseIntPipe) id: number) {

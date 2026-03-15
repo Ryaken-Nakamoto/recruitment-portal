@@ -28,6 +28,9 @@ export interface ApplicationListItemDto {
   finalDecision: FinalDecision | null;
   submittedAt: string;
   applicant: ApplicationListItemApplicantDto;
+  reviewsSubmitted: number;
+  reviewsTotal: number;
+  averageScore: number | null;
 }
 
 export interface ApplicationsListResponse {
@@ -35,4 +38,22 @@ export interface ApplicationsListResponse {
   total: number;
   page: number;
   totalPages: number;
+}
+
+export type AdminDecision = 'advance' | 'reject' | 'accept';
+
+export interface BulkDecideRequest {
+  applicationIds: number[];
+  decision: AdminDecision;
+}
+
+export interface BulkDecideFailure {
+  id: number;
+  applicantName: string;
+  reason: string;
+}
+
+export interface BulkDecideResponse {
+  succeeded: number[];
+  failed: BulkDecideFailure[];
 }

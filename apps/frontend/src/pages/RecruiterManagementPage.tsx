@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Alert,
   Box,
   Button,
   Chip,
   CircularProgress,
+  IconButton,
   Pagination,
   Snackbar,
   Table,
@@ -14,6 +16,7 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import apiClient from '@api/apiClient';
@@ -73,6 +76,7 @@ function ActionButton({
 }
 
 const RecruiterManagementPage: React.FC = () => {
+  const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<SnackbarState>({
@@ -122,6 +126,23 @@ const RecruiterManagementPage: React.FC = () => {
 
   return (
     <Box sx={{ p: 4 }}>
+      <Box sx={{ mb: 2 }}>
+        <IconButton
+          onClick={() => navigate('/admin/home')}
+          sx={{ mr: 1 }}
+          aria-label="back"
+        >
+          <ArrowBackIcon />
+        </IconButton>
+        <Typography
+          variant="caption"
+          component="span"
+          sx={{ cursor: 'pointer' }}
+          onClick={() => navigate('/admin/home')}
+        >
+          Back to Home
+        </Typography>
+      </Box>
       <Box
         sx={{
           display: 'flex',
@@ -176,7 +197,15 @@ const RecruiterManagementPage: React.FC = () => {
               ) : (
                 data.data.map((recruiter) => (
                   <TableRow key={recruiter.id}>
-                    <TableCell>
+                    <TableCell
+                      sx={{
+                        cursor: 'pointer',
+                        '&:hover': { textDecoration: 'underline' },
+                      }}
+                      onClick={() =>
+                        navigate(`/admin/recruiters/${recruiter.id}`)
+                      }
+                    >
                       {recruiter.firstName} {recruiter.lastName}
                     </TableCell>
                     <TableCell>{recruiter.email}</TableCell>

@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { ScreeningRubric } from '../rubrics/entities/screening-rubric.entity';
 
 import { Application } from '../applications/entities/application.entity';
 import { Assignment } from '../applications/entities/assignment.entity';
@@ -48,6 +49,8 @@ export class RecruitersReviewService {
     private readonly screeningCriteriaRepo: Repository<ScreeningCriteria>,
     @InjectRepository(InterviewCriteria)
     private readonly interviewCriteriaRepo: Repository<InterviewCriteria>,
+    @InjectRepository(ScreeningRubric)
+    private readonly screeningRubricRepo: Repository<ScreeningRubric>,
   ) {}
 
   async listAssignments(
@@ -95,12 +98,27 @@ export class RecruitersReviewService {
           }
         }
 
+        // Compute review progress for this application
+        let reviewsTotal = 0;
+        let reviewsSubmitted = 0;
+        if (app.round === 'screening') {
+          const allAssignments = await this.assignmentRepo.find({
+            where: { application: { id: app.id } },
+          });
+          reviewsTotal = allAssignments.length;
+          reviewsSubmitted = await this.screeningReviewRepo.count({
+            where: { assignment: { id: In(allAssignments.map((x) => x.id)) } },
+          });
+        }
+
         return {
           assignmentId: a.id,
           application: {
             id: app.id,
             round: app.round,
             applicantName: applicant.name,
+            reviewsTotal,
+            reviewsSubmitted,
           },
           reviewStatus,
         };
@@ -403,5 +421,217 @@ export class RecruitersReviewService {
         `All screening reviews submitted for application ${applicationId}, set to AWAITING_ADMIN`,
       );
     }
+  }
+
+  async getApplicationDetailForRecruiter(
+    applicationId: number,
+    recruiter: Recruiter,
+  ) {
+    // Verify recruiter is assigned to this application
+    const assignment = await this.assignmentRepo.findOne({
+      where: {
+        application: { id: applicationId },
+        recruiter: { id: recruiter.id },
+      },
+    });
+    if (!assignment) {
+      throw new ForbiddenException('Not assigned to this application');
+    }
+
+    const application = await this.applicationRepo.findOne({
+      where: { id: applicationId },
+      relations: ['applicant', 'rawGoogleForm'],
+    });
+    if (!application) {
+      throw new NotFoundException('Application not found');
+    }
+
+    const applicant = application.applicant as {
+      id: number;
+      name: string;
+      email: string;
+      academicYear: string;
+      major: string;
+    };
+    const rawForm = application.rawGoogleForm as unknown as Record<
+      string,
+      unknown
+    >;
+
+    return {
+      id: application.id,
+      round: application.round,
+      roundStatus: application.roundStatus,
+      finalDecision: application.finalDecision,
+      submittedAt: application.submittedAt,
+      applicant: {
+        id: applicant.id,
+        name: applicant.name,
+        email: applicant.email,
+        academicYear: applicant.academicYear,
+        major: applicant.major,
+      },
+      rawGoogleForm: rawForm,
+    };
+  }
+
+  async getAssignmentByApplication(
+    applicationId: number,
+    recruiter: Recruiter,
+  ) {
+    const assignment = await this.assignmentRepo.findOne({
+      where: {
+        application: { id: applicationId },
+        recruiter: { id: recruiter.id },
+      },
+    });
+    if (!assignment) {
+      throw new NotFoundException('No assignment found for this application');
+    }
+    return this.getAssignmentDetail(assignment.id, recruiter);
+  }
+
+  async getAssignmentDetail(assignmentId: number, recruiter: Recruiter) {
+    const assignment = await this.assignmentRepo.findOne({
+      where: { id: assignmentId, recruiter: { id: recruiter.id } },
+      relations: [
+        'application',
+        'application.applicant',
+        'application.rawGoogleForm',
+      ],
+    });
+    if (!assignment) {
+      throw new NotFoundException('Assignment not found');
+    }
+
+    const app = assignment.application as Application;
+    const applicant = app.applicant as {
+      name: string;
+      email: string;
+      major: string;
+      academicYear: string;
+    };
+    const rawForm = app.rawGoogleForm as {
+      whyC4C: string;
+      selfStartedProject: string;
+      communityImpact: string;
+      teamConflict: string;
+      otherExperiences: string;
+    };
+
+    const review = await this.screeningReviewRepo.findOne({
+      where: { assignment: { id: assignmentId } },
+      relations: ['scores', 'scores.criteria'],
+    });
+
+    const rubrics = await this.screeningRubricRepo.find({
+      relations: ['criteria'],
+    });
+
+    const scoreMap = new Map<number, number>();
+    if (review) {
+      for (const s of review.scores as ScreeningReviewScore[]) {
+        const criteria = s.criteria as ScreeningCriteria;
+        scoreMap.set(criteria.id, s.score);
+      }
+    }
+
+    const rubricCriteria = rubrics.flatMap((r) =>
+      r.criteria.map((c) => ({
+        id: c.id,
+        name: c.name,
+        oneDescription: c.oneDescription,
+        twoDescription: c.twoDescription,
+        threeDescription: c.threeDescription,
+        score: scoreMap.get(c.id) ?? null,
+      })),
+    );
+
+    this.logger.log(
+      `Recruiter ${recruiter.id} fetched assignment detail for assignment ${assignmentId}`,
+    );
+
+    return {
+      assignmentId: assignment.id,
+      notes: assignment.notes,
+      application: {
+        id: app.id,
+        applicantName: applicant.name,
+        email: applicant.email,
+        major: applicant.major,
+        academicYear: applicant.academicYear,
+        round: app.round,
+        roundStatus: app.roundStatus,
+        whyC4C: rawForm.whyC4C,
+        selfStartedProject: rawForm.selfStartedProject,
+        communityImpact: rawForm.communityImpact,
+        teamConflict: rawForm.teamConflict,
+        otherExperiences: rawForm.otherExperiences,
+      },
+      reviewStatus: review ? 'submitted' : 'not_started',
+      rubricCriteria,
+    };
+  }
+
+  async getCoReviewers(applicationId: number, recruiter: Recruiter) {
+    const callerAssignment = await this.assignmentRepo.findOne({
+      where: {
+        application: { id: applicationId },
+        recruiter: { id: recruiter.id },
+      },
+    });
+    if (!callerAssignment) {
+      throw new NotFoundException('Not assigned to this application');
+    }
+
+    const assignments = await this.assignmentRepo.find({
+      where: { application: { id: applicationId } },
+      relations: ['recruiter'],
+    });
+
+    const assignmentIds = assignments.map((a) => a.id);
+    const reviews =
+      assignmentIds.length > 0
+        ? await this.screeningReviewRepo.find({
+            where: { assignment: { id: In(assignmentIds) } },
+            relations: ['assignment'],
+          })
+        : [];
+    const reviewedIds = new Set(
+      reviews.map((r) => (r.assignment as Assignment).id),
+    );
+
+    this.logger.log(
+      `Recruiter ${recruiter.id} fetched co-reviewers for application ${applicationId}`,
+    );
+
+    return assignments.map((a) => ({
+      assignmentId: a.id,
+      recruiterId: (a.recruiter as Recruiter).id,
+      recruiterName: `${(a.recruiter as Recruiter).firstName} ${
+        (a.recruiter as Recruiter).lastName
+      }`,
+      reviewStatus: reviewedIds.has(a.id) ? 'submitted' : 'not_started',
+    }));
+  }
+
+  async updateNotes(
+    assignmentId: number,
+    notes: string | null,
+    recruiter: Recruiter,
+  ) {
+    const assignment = await this.assignmentRepo.findOne({
+      where: { id: assignmentId, recruiter: { id: recruiter.id } },
+    });
+    if (!assignment) {
+      throw new NotFoundException('Assignment not found');
+    }
+
+    assignment.notes = notes;
+    await this.assignmentRepo.save(assignment);
+    this.logger.log(
+      `Recruiter ${recruiter.id} updated notes for assignment ${assignmentId}`,
+    );
+    return { assignmentId, notes };
   }
 }

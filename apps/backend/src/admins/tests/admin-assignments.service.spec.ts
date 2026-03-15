@@ -12,9 +12,7 @@ import { Application } from '../../applications/entities/application.entity';
 import { Assignment } from '../../applications/entities/assignment.entity';
 import { ScreeningReview } from '../../applications/entities/screening-review.entity';
 import { ScreeningReviewScore } from '../../applications/entities/screening-review-score.entity';
-import { InterviewReview } from '../../applications/entities/interview-review.entity';
 import { ApplicationRound } from '../../applications/enums/application-round.enum';
-import { InterviewReviewStatus } from '../../applications/enums/interview-review-status.enum';
 import { RoundStatus } from '../../applications/enums/round-status.enum';
 import { Recruiter } from '../../recruiters/entities/recruiter.entity';
 import { AccountStatus } from '../../users/status';
@@ -26,35 +24,36 @@ describe('AdminAssignmentsService', () => {
   let recruiterRepo: jest.Mocked<Repository<Recruiter>>;
   let screeningReviewRepo: jest.Mocked<Repository<ScreeningReview>>;
   let screeningReviewScoreRepo: jest.Mocked<Repository<ScreeningReviewScore>>;
-  let interviewReviewRepo: jest.Mocked<Repository<InterviewReview>>;
 
   beforeEach(async () => {
     const mockApplicationRepo = {
       find: jest.fn(),
+      findOne: jest.fn(),
       findBy: jest.fn(),
+      save: jest.fn(),
       update: jest.fn().mockResolvedValue(undefined),
     };
     const mockAssignmentRepo = {
       create: jest.fn(),
       save: jest.fn(),
+      findOne: jest.fn(),
       delete: jest.fn().mockResolvedValue(undefined),
       find: jest.fn().mockResolvedValue([]),
     };
     const mockRecruiterRepo = {
       findBy: jest.fn(),
+      findOne: jest.fn(),
     };
     const mockScreeningReviewRepo = {
       find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn().mockResolvedValue(null),
+      count: jest.fn().mockResolvedValue(0),
       create: jest.fn().mockImplementation((d) => d),
       save: jest.fn().mockResolvedValue({}),
     };
     const mockScreeningReviewScoreRepo = {
       create: jest.fn().mockImplementation((d) => d),
       save: jest.fn().mockResolvedValue([]),
-    };
-    const mockInterviewReviewRepo = {
-      find: jest.fn().mockResolvedValue([]),
-      delete: jest.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -77,10 +76,6 @@ describe('AdminAssignmentsService', () => {
           provide: getRepositoryToken(ScreeningReviewScore),
           useValue: mockScreeningReviewScoreRepo,
         },
-        {
-          provide: getRepositoryToken(InterviewReview),
-          useValue: mockInterviewReviewRepo,
-        },
       ],
     }).compile();
 
@@ -92,7 +87,6 @@ describe('AdminAssignmentsService', () => {
     screeningReviewScoreRepo = module.get(
       getRepositoryToken(ScreeningReviewScore),
     );
-    interviewReviewRepo = module.get(getRepositoryToken(InterviewReview));
   });
 
   it('should be defined', () => {
@@ -204,14 +198,10 @@ describe('AdminAssignmentsService', () => {
     });
 
     it('throws NotFoundException when an application ID is invalid', async () => {
-      const recruiters = [
-        { id: 1, firstName: 'Carol', lastName: 'White' },
-        { id: 2, firstName: 'Dave', lastName: 'Brown' },
-      ] as Recruiter[];
-      recruiterRepo.findBy.mockResolvedValue(recruiters);
+      recruiterRepo.findBy.mockResolvedValue([{ id: 1 }] as Recruiter[]);
       applicationRepo.findBy.mockResolvedValue([]);
 
-      await expect(service.assignRecruiters([99], [1, 2], 1)).rejects.toThrow(
+      await expect(service.assignRecruiters([99], [1], 1)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -224,100 +214,58 @@ describe('AdminAssignmentsService', () => {
       );
     });
 
-    it('deletes existing assignments before creating new ones (screening round)', async () => {
-      const recruiters = [
-        { id: 1, firstName: 'Carol', lastName: 'White' },
-      ] as Recruiter[];
-      const applications = [
-        { id: 10, round: ApplicationRound.SCREENING },
-      ] as Application[];
+    it('throws BadRequestException when any selected app has roundStatus PENDING_EMAIL', async () => {
+      recruiterRepo.findBy.mockResolvedValue([{ id: 1 }] as Recruiter[]);
+      applicationRepo.findBy.mockResolvedValue([
+        {
+          id: 10,
+          round: ApplicationRound.SCREENING,
+          roundStatus: RoundStatus.PENDING_EMAIL,
+        },
+      ] as Application[]);
 
-      recruiterRepo.findBy.mockResolvedValue(recruiters);
-      applicationRepo.findBy.mockResolvedValue(applications);
-      assignmentRepo.create.mockImplementation((data) => data as Assignment);
-      assignmentRepo.save.mockResolvedValue({} as Assignment);
-
-      await service.assignRecruiters([10], [1], 1);
-
-      expect(assignmentRepo.delete).toHaveBeenCalledWith({
-        application: expect.anything(),
+      const err = await service.assignRecruiters([10], [1], 1).catch((e) => e);
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toMatchObject({
+        blockedAppIds: [10],
       });
     });
 
-    it('does NOT delete interview reviews when reassigning a screening-round application', async () => {
-      const recruiters = [{ id: 1 }] as Recruiter[];
-      const applications = [
-        { id: 10, round: ApplicationRound.SCREENING },
-      ] as Application[];
+    it('throws BadRequestException when any selected app has roundStatus EMAIL_SENT', async () => {
+      recruiterRepo.findBy.mockResolvedValue([{ id: 1 }] as Recruiter[]);
+      applicationRepo.findBy.mockResolvedValue([
+        {
+          id: 10,
+          round: ApplicationRound.SCREENING,
+          roundStatus: RoundStatus.EMAIL_SENT,
+        },
+      ] as Application[]);
 
-      recruiterRepo.findBy.mockResolvedValue(recruiters);
-      applicationRepo.findBy.mockResolvedValue(applications);
-      assignmentRepo.create.mockImplementation((data) => data as Assignment);
-      assignmentRepo.save.mockResolvedValue({} as Assignment);
-
-      await service.assignRecruiters([10], [1], 1);
-
-      expect(interviewReviewRepo.delete).not.toHaveBeenCalled();
-    });
-
-    it('deletes only the current-round interview review when reassigning an interview-round application', async () => {
-      const recruiters = [{ id: 1 }] as Recruiter[];
-      const applications = [
-        { id: 10, round: ApplicationRound.TECHNICAL_INTERVIEW },
-      ] as Application[];
-
-      recruiterRepo.findBy.mockResolvedValue(recruiters);
-      applicationRepo.findBy.mockResolvedValue(applications);
-
-      // Conflict check returns no blocking reviews; deletion check finds a draft to remove
-      interviewReviewRepo.find
-        .mockResolvedValueOnce([]) // conflict check (no PENDING_APPROVAL/APPROVED)
-        .mockResolvedValueOnce([{ id: 5 }] as unknown as InterviewReview[]); // deletion check finds draft
-
-      assignmentRepo.create.mockImplementation((data) => data as Assignment);
-      assignmentRepo.save.mockResolvedValue({} as Assignment);
-
-      await service.assignRecruiters([10], [1], 1);
-
-      expect(interviewReviewRepo.delete).toHaveBeenCalledWith({
-        id: expect.anything(),
+      const err = await service.assignRecruiters([10], [1], 1).catch((e) => e);
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toMatchObject({
+        blockedAppIds: [10],
       });
     });
 
-    it('sets roundStatus to IN_PROGRESS after creating assignments', async () => {
-      const recruiters = [
-        { id: 1, firstName: 'Carol', lastName: 'White' },
-      ] as Recruiter[];
+    it('creates new assignments with round-robin distribution', async () => {
+      const recruiters = [{ id: 1 }, { id: 2 }, { id: 3 }] as Recruiter[];
       const applications = [
-        { id: 10, round: ApplicationRound.SCREENING },
+        {
+          id: 10,
+          round: ApplicationRound.SCREENING,
+          roundStatus: RoundStatus.PENDING,
+        },
+        {
+          id: 11,
+          round: ApplicationRound.SCREENING,
+          roundStatus: RoundStatus.PENDING,
+        },
       ] as Application[];
 
       recruiterRepo.findBy.mockResolvedValue(recruiters);
       applicationRepo.findBy.mockResolvedValue(applications);
-      assignmentRepo.create.mockImplementation((data) => data as Assignment);
-      assignmentRepo.save.mockResolvedValue({} as Assignment);
-
-      await service.assignRecruiters([10], [1], 1);
-
-      expect(applicationRepo.update).toHaveBeenCalledWith(
-        { id: expect.anything() },
-        { roundStatus: RoundStatus.IN_PROGRESS },
-      );
-    });
-
-    it('creates correct assignments with round-robin distribution', async () => {
-      const recruiters = [
-        { id: 1, firstName: 'Carol', lastName: 'White' },
-        { id: 2, firstName: 'Dave', lastName: 'Brown' },
-        { id: 3, firstName: 'Eve', lastName: 'Green' },
-      ] as Recruiter[];
-      const applications = [
-        { id: 10, round: ApplicationRound.SCREENING },
-        { id: 11, round: ApplicationRound.SCREENING },
-      ] as Application[];
-
-      recruiterRepo.findBy.mockResolvedValue(recruiters);
-      applicationRepo.findBy.mockResolvedValue(applications);
+      assignmentRepo.find.mockResolvedValue([]); // no existing assignments
       assignmentRepo.create.mockImplementation((data) => data as Assignment);
       assignmentRepo.save.mockResolvedValue({} as Assignment);
 
@@ -325,269 +273,101 @@ describe('AdminAssignmentsService', () => {
 
       expect(assignmentRepo.create).toHaveBeenCalledTimes(4);
       expect(assignmentRepo.save).toHaveBeenCalledTimes(4);
-      expect(result).toEqual({ assigned: 4 });
+      expect(result).toEqual({ assigned: 4, skippedAppIds: [] });
     });
 
-    it('assigns minimum: 1 recruiter to 1 application', async () => {
-      const recruiters = [{ id: 1 }] as Recruiter[];
-      const applications = [
-        { id: 10, round: ApplicationRound.SCREENING },
-      ] as Application[];
-
-      recruiterRepo.findBy.mockResolvedValue(recruiters);
-      applicationRepo.findBy.mockResolvedValue(applications);
-      assignmentRepo.create.mockImplementation((data) => data as Assignment);
-      assignmentRepo.save.mockResolvedValue({} as Assignment);
-
-      const result = await service.assignRecruiters([10], [1], 1);
-
-      expect(result).toEqual({ assigned: 1 });
-      expect(assignmentRepo.create).toHaveBeenCalledTimes(1);
-    });
-
-    it('reassigning same recruiters is idempotent (deletes and recreates)', async () => {
+    it('skips duplicate (app, recruiter) pairs that already exist', async () => {
       const recruiters = [{ id: 1 }, { id: 2 }] as Recruiter[];
       const applications = [
-        { id: 10, round: ApplicationRound.SCREENING },
+        {
+          id: 10,
+          round: ApplicationRound.SCREENING,
+          roundStatus: RoundStatus.IN_PROGRESS,
+        },
       ] as Application[];
+
       recruiterRepo.findBy.mockResolvedValue(recruiters);
       applicationRepo.findBy.mockResolvedValue(applications);
+      // recruiter 1 already assigned to app 10
+      assignmentRepo.find.mockResolvedValue([
+        {
+          application: { id: 10 },
+          recruiter: { id: 1 },
+        } as unknown as Assignment,
+      ]);
       assignmentRepo.create.mockImplementation((data) => data as Assignment);
       assignmentRepo.save.mockResolvedValue({} as Assignment);
 
       const result = await service.assignRecruiters([10], [1, 2], 2);
 
-      expect(assignmentRepo.delete).toHaveBeenCalled();
-      expect(result).toEqual({ assigned: 2 });
+      // Only recruiter 2 is new — recruiter 1 is skipped
+      expect(assignmentRepo.create).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({ assigned: 1, skippedAppIds: [10] });
     });
 
-    it('reassigning to fewer recruiters reduces assignment count', async () => {
+    it('returns 0 assigned and reports skipped app when all pairs already exist', async () => {
       const recruiters = [{ id: 1 }] as Recruiter[];
       const applications = [
-        { id: 10, round: ApplicationRound.SCREENING },
-      ] as Application[];
-      recruiterRepo.findBy.mockResolvedValue(recruiters);
-      applicationRepo.findBy.mockResolvedValue(applications);
-      assignmentRepo.create.mockImplementation((data) => data as Assignment);
-      assignmentRepo.save.mockResolvedValue({} as Assignment);
-
-      const result = await service.assignRecruiters([10], [1], 1);
-
-      expect(result).toEqual({ assigned: 1 });
-    });
-
-    it('blocks the entire batch when any screening-round application has a conflict', async () => {
-      const recruiters = [{ id: 1 }] as Recruiter[];
-      const applications = [
-        { id: 10, round: ApplicationRound.SCREENING },
-        { id: 11, round: ApplicationRound.SCREENING },
-      ] as Application[];
-      recruiterRepo.findBy.mockResolvedValue(recruiters);
-      applicationRepo.findBy.mockResolvedValue(applications);
-
-      const assignment10 = {
-        id: 1,
-        application: {
+        {
           id: 10,
-          applicant: { name: 'Alice Smith' },
+          round: ApplicationRound.SCREENING,
+          roundStatus: RoundStatus.IN_PROGRESS,
         },
-      } as unknown as Assignment;
-      const assignment11 = {
-        id: 2,
-        application: {
-          id: 11,
-          applicant: { name: 'Bob Jones' },
-        },
-      } as unknown as Assignment;
-      assignmentRepo.find.mockResolvedValue([assignment10, assignment11]);
-
-      // Only app 10 has a submitted screening review
-      screeningReviewRepo.find.mockResolvedValue([
-        { assignment: { id: 1 } } as unknown as ScreeningReview,
-      ]);
-
-      await expect(service.assignRecruiters([10, 11], [1], 1)).rejects.toThrow(
-        ConflictException,
-      );
-    });
-  });
-
-  // ──────────────────────────────────────────────────────────────────────
-  // Re-assignment conflict protection — screening round
-  // ──────────────────────────────────────────────────────────────────────
-  describe('re-assignment protection (screening round)', () => {
-    const recruiters = [{ id: 1 }] as Recruiter[];
-    const screeningApp = {
-      id: 10,
-      round: ApplicationRound.SCREENING,
-      applicant: { name: 'Alice Smith' },
-    } as unknown as Application;
-
-    const assignment10 = {
-      id: 1,
-      application: {
-        id: 10,
-        applicant: { name: 'Alice Smith' },
-      },
-    } as unknown as Assignment;
-
-    function setupScreeningApp() {
-      recruiterRepo.findBy.mockResolvedValue(recruiters);
-      applicationRepo.findBy.mockResolvedValue([screeningApp]);
-      assignmentRepo.find.mockResolvedValue([assignment10]);
-    }
-
-    it('throws ConflictException with blockType "submitted" when a ScreeningReview exists', async () => {
-      setupScreeningApp();
-
-      screeningReviewRepo.find.mockResolvedValue([
-        { assignment: { id: 1 } } as unknown as ScreeningReview,
-      ]);
-
-      const err = await service.assignRecruiters([10], [1], 1).catch((e) => e);
-      expect(err).toBeInstanceOf(ConflictException);
-      expect((err as ConflictException).getResponse()).toMatchObject({
-        blockType: 'submitted',
-        conflictingApps: [{ id: 10, applicantName: 'Alice Smith' }],
-      });
-    });
-
-    it('proceeds without error when no screening reviews exist', async () => {
-      setupScreeningApp();
-
-      assignmentRepo.create.mockImplementation((d) => d as Assignment);
-      assignmentRepo.save.mockResolvedValue({} as Assignment);
-      // Defaults: screeningReviewRepo.find → [], interviewReviewRepo.find → []
-
-      const result = await service.assignRecruiters([10], [1], 1);
-      expect(result).toEqual({ assigned: 1 });
-    });
-
-    it('screening review conflict blocks even when an interview review is also a DRAFT', async () => {
-      setupScreeningApp();
-
-      screeningReviewRepo.find.mockResolvedValue([
-        { assignment: { id: 1 } } as unknown as ScreeningReview,
-      ]);
-
-      const err = await service.assignRecruiters([10], [1], 1).catch((e) => e);
-      expect((err as ConflictException).getResponse()).toMatchObject({
-        blockType: 'submitted',
-      });
-    });
-  });
-
-  // ──────────────────────────────────────────────────────────────────────
-  // Re-assignment conflict protection — interview round
-  // ──────────────────────────────────────────────────────────────────────
-  describe('re-assignment protection (interview round)', () => {
-    const recruiters = [{ id: 1 }] as Recruiter[];
-    const interviewApp = {
-      id: 10,
-      round: ApplicationRound.TECHNICAL_INTERVIEW,
-      applicant: { name: 'Alice Smith' },
-    } as unknown as Application;
-
-    function setupInterviewApp() {
-      recruiterRepo.findBy.mockResolvedValue(recruiters);
-      applicationRepo.findBy.mockResolvedValue([interviewApp]);
-    }
-
-    it('is NOT blocked by screening reviews from a previously completed round', async () => {
-      setupInterviewApp();
-
-      // interviewReviewRepo.find: no blocking reviews (conflict check), then no draft to delete
-      interviewReviewRepo.find.mockResolvedValue([]);
-      assignmentRepo.create.mockImplementation((d) => d as Assignment);
-      assignmentRepo.save.mockResolvedValue({} as Assignment);
-
-      // screeningReviewRepo.find would fire in collectScreeningReviews — return empty
-      screeningReviewRepo.find.mockResolvedValue([]);
-
-      const result = await service.assignRecruiters([10], [1], 1);
-      expect(result).toEqual({ assigned: 1 });
-    });
-
-    it('throws ConflictException with blockType "in_progress" when InterviewReview is PENDING_APPROVAL', async () => {
-      setupInterviewApp();
-
-      interviewReviewRepo.find.mockResolvedValue([
-        {
-          application: {
-            id: 10,
-            applicant: { name: 'Alice Smith' },
-          },
-          status: InterviewReviewStatus.PENDING_APPROVAL,
-        } as unknown as InterviewReview,
-      ]);
-
-      const err = await service.assignRecruiters([10], [1], 1).catch((e) => e);
-      expect(err).toBeInstanceOf(ConflictException);
-      expect((err as ConflictException).getResponse()).toMatchObject({
-        blockType: 'in_progress',
-        conflictingApps: [{ id: 10, applicantName: 'Alice Smith' }],
-      });
-    });
-
-    it('throws ConflictException with blockType "in_progress" when InterviewReview is APPROVED', async () => {
-      setupInterviewApp();
-
-      interviewReviewRepo.find.mockResolvedValue([
-        {
-          application: {
-            id: 10,
-            applicant: { name: 'Alice Smith' },
-          },
-          status: InterviewReviewStatus.APPROVED,
-        } as unknown as InterviewReview,
-      ]);
-
-      await expect(service.assignRecruiters([10], [1], 1)).rejects.toThrow(
-        ConflictException,
-      );
-    });
-  });
-
-  // ──────────────────────────────────────────────────────────────────────
-  // force=true behaviour
-  // ──────────────────────────────────────────────────────────────────────
-  describe('force=true behaviour', () => {
-    const recruiters = [{ id: 1 }] as Recruiter[];
-
-    function setupScreeningApp() {
-      const app = [
-        { id: 10, round: ApplicationRound.SCREENING },
       ] as Application[];
+
       recruiterRepo.findBy.mockResolvedValue(recruiters);
-      applicationRepo.findBy.mockResolvedValue(app);
+      applicationRepo.findBy.mockResolvedValue(applications);
+      assignmentRepo.find.mockResolvedValue([
+        {
+          application: { id: 10 },
+          recruiter: { id: 1 },
+        } as unknown as Assignment,
+      ]);
+
+      const result = await service.assignRecruiters([10], [1], 1);
+
+      expect(assignmentRepo.create).not.toHaveBeenCalled();
+      expect(result).toEqual({ assigned: 0, skippedAppIds: [10] });
+    });
+
+    it('never deletes existing assignments', async () => {
+      const recruiters = [{ id: 1 }] as Recruiter[];
+      const applications = [
+        {
+          id: 10,
+          round: ApplicationRound.SCREENING,
+          roundStatus: RoundStatus.PENDING,
+        },
+      ] as Application[];
+
+      recruiterRepo.findBy.mockResolvedValue(recruiters);
+      applicationRepo.findBy.mockResolvedValue(applications);
       assignmentRepo.find.mockResolvedValue([]);
       assignmentRepo.create.mockImplementation((d) => d as Assignment);
       assignmentRepo.save.mockResolvedValue({} as Assignment);
-    }
 
-    it('bypasses conflict check and proceeds', async () => {
-      setupScreeningApp();
+      await service.assignRecruiters([10], [1], 1);
 
-      const result = await service.assignRecruiters([10], [1], 1, true);
-
-      // checkReviewConflicts is skipped — these repos should not be queried for conflict
-      expect(screeningReviewRepo.find).not.toHaveBeenCalled();
-      expect(result).toEqual({ assigned: 1 });
+      expect(assignmentRepo.delete).not.toHaveBeenCalled();
     });
 
-    it('does not call interviewReviewRepo when force=true on a screening-round application', async () => {
-      setupScreeningApp();
+    it('sets roundStatus to IN_PROGRESS for PENDING apps that receive new assignments', async () => {
+      const recruiters = [{ id: 1 }] as Recruiter[];
+      const applications = [
+        {
+          id: 10,
+          round: ApplicationRound.SCREENING,
+          roundStatus: RoundStatus.PENDING,
+        },
+      ] as Application[];
 
-      await service.assignRecruiters([10], [1], 1, true);
+      recruiterRepo.findBy.mockResolvedValue(recruiters);
+      applicationRepo.findBy.mockResolvedValue(applications);
+      assignmentRepo.find.mockResolvedValue([]);
+      assignmentRepo.create.mockImplementation((d) => d as Assignment);
+      assignmentRepo.save.mockResolvedValue({} as Assignment);
 
-      expect(interviewReviewRepo.find).not.toHaveBeenCalled();
-      expect(interviewReviewRepo.delete).not.toHaveBeenCalled();
-    });
-
-    it('resets roundStatus to IN_PROGRESS even if application was AWAITING_ADMIN', async () => {
-      setupScreeningApp();
-
-      await service.assignRecruiters([10], [1], 1, true);
+      await service.assignRecruiters([10], [1], 1);
 
       expect(applicationRepo.update).toHaveBeenCalledWith(
         { id: expect.anything() },
@@ -595,156 +375,417 @@ describe('AdminAssignmentsService', () => {
       );
     });
 
-    it('deletes current-round interview review before assignments when force=true on interview app (order matters for FK cascade)', async () => {
-      const interviewApps = [
-        { id: 10, round: ApplicationRound.TECHNICAL_INTERVIEW },
+    it('resets AWAITING_ADMIN to IN_PROGRESS when a new assignment is added', async () => {
+      const recruiters = [{ id: 2 }] as Recruiter[];
+      const applications = [
+        {
+          id: 10,
+          round: ApplicationRound.SCREENING,
+          roundStatus: RoundStatus.AWAITING_ADMIN,
+        },
       ] as Application[];
+
       recruiterRepo.findBy.mockResolvedValue(recruiters);
-      applicationRepo.findBy.mockResolvedValue(interviewApps);
+      applicationRepo.findBy.mockResolvedValue(applications);
+      assignmentRepo.find.mockResolvedValue([]);
       assignmentRepo.create.mockImplementation((d) => d as Assignment);
       assignmentRepo.save.mockResolvedValue({} as Assignment);
-      screeningReviewRepo.find.mockResolvedValue([]);
 
-      // find returns a review so the delete branch is exercised
-      interviewReviewRepo.find.mockResolvedValue([
-        { id: 5 },
-      ] as unknown as InterviewReview[]);
+      await service.assignRecruiters([10], [2], 1);
 
-      const callOrder: string[] = [];
-      interviewReviewRepo.delete.mockImplementation(() => {
-        callOrder.push('interviewReview');
-        return Promise.resolve({ affected: 1, raw: [] });
-      });
-      assignmentRepo.delete.mockImplementation(() => {
-        callOrder.push('assignment');
-        return Promise.resolve({ affected: 1, raw: [] });
-      });
+      expect(applicationRepo.update).toHaveBeenCalledWith(
+        { id: expect.anything() },
+        { roundStatus: RoundStatus.IN_PROGRESS },
+      );
+    });
 
-      await service.assignRecruiters([10], [1], 1, true);
+    it('does not update roundStatus when all pairs are duplicates (no new assignments)', async () => {
+      const recruiters = [{ id: 1 }] as Recruiter[];
+      const applications = [
+        {
+          id: 10,
+          round: ApplicationRound.SCREENING,
+          roundStatus: RoundStatus.AWAITING_ADMIN,
+        },
+      ] as Application[];
 
-      expect(callOrder).toEqual(['interviewReview', 'assignment']);
+      recruiterRepo.findBy.mockResolvedValue(recruiters);
+      applicationRepo.findBy.mockResolvedValue(applications);
+      assignmentRepo.find.mockResolvedValue([
+        {
+          application: { id: 10 },
+          recruiter: { id: 1 },
+        } as unknown as Assignment,
+      ]);
+
+      await service.assignRecruiters([10], [1], 1);
+
+      expect(applicationRepo.update).not.toHaveBeenCalled();
     });
   });
 
   // ──────────────────────────────────────────────────────────────────────
-  // Screening review preservation across reassignments
+  // getApplicationReviews
   // ──────────────────────────────────────────────────────────────────────
-  describe('screening review preservation', () => {
-    it('restores the screening review for a recruiter who stays in the new assignment set', async () => {
-      const recruiters = [{ id: 1 }] as Recruiter[];
-      const applications = [
-        { id: 10, round: ApplicationRound.TECHNICAL_INTERVIEW },
-      ] as Application[];
+  describe('getApplicationReviews', () => {
+    it('throws NotFoundException when application does not exist', async () => {
+      applicationRepo.findOne.mockResolvedValue(null);
+      await expect(service.getApplicationReviews(99)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
 
-      recruiterRepo.findBy.mockResolvedValue(recruiters);
-      applicationRepo.findBy.mockResolvedValue(applications);
+    it('returns empty array when there are no assignments', async () => {
+      applicationRepo.findOne.mockResolvedValue({ id: 1 } as Application);
+      assignmentRepo.find.mockResolvedValue([]);
 
-      // No blocking reviews; no draft to delete
-      interviewReviewRepo.find.mockResolvedValue([]);
+      const result = await service.getApplicationReviews(1);
 
-      // collectScreeningReviews finds one screening review for recruiter 1 on app 10
-      screeningReviewRepo.find.mockResolvedValue([
+      expect(result).toEqual([]);
+    });
+
+    it('returns not_started status when no screening review exists for assignment', async () => {
+      applicationRepo.findOne.mockResolvedValue({ id: 1 } as Application);
+      assignmentRepo.find.mockResolvedValue([
         {
-          assignment: {
-            recruiter: { id: 1 },
-            application: { id: 10 },
-          },
-          scores: [],
-        } as unknown as ScreeningReview,
+          id: 10,
+          notes: null,
+          recruiter: { id: 5, firstName: 'Carol', lastName: 'White' },
+          application: { id: 1 },
+        } as unknown as Assignment,
       ]);
+      screeningReviewRepo.find.mockResolvedValue([]);
 
-      const savedAssignment = {
-        id: 99,
-        recruiter: { id: 1 },
-        application: { id: 10 },
-      } as unknown as Assignment;
-      assignmentRepo.create.mockImplementation((d) => d as Assignment);
-      assignmentRepo.save.mockResolvedValue(savedAssignment);
+      const result = await service.getApplicationReviews(1);
 
-      await service.assignRecruiters([10], [1], 1);
-
-      expect(screeningReviewRepo.create).toHaveBeenCalledWith({
-        assignment: savedAssignment,
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        assignmentId: 10,
+        recruiterName: 'Carol White',
+        reviewStatus: 'not_started',
+        notes: null,
+        rubricCriteria: [],
       });
-      expect(screeningReviewRepo.save).toHaveBeenCalled();
     });
 
-    it('does not call screeningReviewRepo.create when a recruiter is removed from the assignment set', async () => {
-      const recruiters = [{ id: 2 }] as Recruiter[]; // recruiter 2 is the NEW set; recruiter 1 is removed
-      const applications = [
-        { id: 10, round: ApplicationRound.TECHNICAL_INTERVIEW },
-      ] as Application[];
-
-      recruiterRepo.findBy.mockResolvedValue(recruiters);
-      applicationRepo.findBy.mockResolvedValue(applications);
-
-      interviewReviewRepo.find.mockResolvedValue([]);
-
-      // Saved screening review for recruiter 1 (who is NOT in the new set)
+    it('returns submitted status with criteria and scores when review exists', async () => {
+      applicationRepo.findOne.mockResolvedValue({ id: 1 } as Application);
+      assignmentRepo.find.mockResolvedValue([
+        {
+          id: 10,
+          notes: 'Great candidate',
+          recruiter: { id: 5, firstName: 'Carol', lastName: 'White' },
+          application: { id: 1 },
+        } as unknown as Assignment,
+      ]);
       screeningReviewRepo.find.mockResolvedValue([
         {
-          assignment: {
-            recruiter: { id: 1 },
-            application: { id: 10 },
-          },
-          scores: [],
+          assignment: { id: 10 },
+          scores: [
+            {
+              criteria: {
+                id: 3,
+                name: 'Technical Skills',
+                oneDescription: 'Basic',
+                twoDescription: 'Intermediate',
+                threeDescription: 'Advanced',
+              },
+              score: 2,
+            },
+          ],
         } as unknown as ScreeningReview,
       ]);
 
-      assignmentRepo.create.mockImplementation((d) => d as Assignment);
-      assignmentRepo.save.mockResolvedValue({
-        id: 88,
-        recruiter: { id: 2 },
-        application: { id: 10 },
-      } as unknown as Assignment);
+      const result = await service.getApplicationReviews(1);
 
-      await service.assignRecruiters([10], [2], 1);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        assignmentId: 10,
+        recruiterName: 'Carol White',
+        reviewStatus: 'submitted',
+        notes: 'Great candidate',
+        rubricCriteria: [
+          {
+            id: 3,
+            name: 'Technical Skills',
+            oneDescription: 'Basic',
+            twoDescription: 'Intermediate',
+            threeDescription: 'Advanced',
+            score: 2,
+          },
+        ],
+      });
+    });
+  });
 
-      // recruiter 1's review cannot be restored — create should NOT be called
-      expect(screeningReviewRepo.create).not.toHaveBeenCalled();
+  // ──────────────────────────────────────────────────────────────────────
+  // addReviewer
+  // ──────────────────────────────────────────────────────────────────────
+  describe('addReviewer', () => {
+    const mockApp = {
+      id: 10,
+      round: ApplicationRound.SCREENING,
+      roundStatus: RoundStatus.IN_PROGRESS,
+      applicant: { name: 'Alice' },
+    } as unknown as Application;
+
+    const mockRecruiter = {
+      id: 5,
+      firstName: 'Carol',
+      lastName: 'White',
+    } as Recruiter;
+
+    it('throws NotFoundException when application does not exist', async () => {
+      applicationRepo.findOne.mockResolvedValue(null);
+      await expect(service.addReviewer(99, 5)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
-    it('restores screening review scores when they exist', async () => {
-      const recruiters = [{ id: 1 }] as Recruiter[];
-      const applications = [
-        { id: 10, round: ApplicationRound.TECHNICAL_INTERVIEW },
-      ] as Application[];
+    it('throws NotFoundException when recruiter does not exist', async () => {
+      applicationRepo.findOne.mockResolvedValue(mockApp);
+      recruiterRepo.findOne.mockResolvedValue(null);
+      await expect(service.addReviewer(10, 99)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
 
-      recruiterRepo.findBy.mockResolvedValue(recruiters);
-      applicationRepo.findBy.mockResolvedValue(applications);
+    it('throws BadRequestException when roundStatus is PENDING_EMAIL', async () => {
+      const pendingEmailApp = {
+        ...mockApp,
+        roundStatus: RoundStatus.PENDING_EMAIL,
+      } as unknown as Application;
+      applicationRepo.findOne.mockResolvedValue(pendingEmailApp);
+      await expect(service.addReviewer(10, 5)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
 
-      interviewReviewRepo.find.mockResolvedValue([]);
+    it('throws BadRequestException when roundStatus is EMAIL_SENT', async () => {
+      const emailSentApp = {
+        ...mockApp,
+        roundStatus: RoundStatus.EMAIL_SENT,
+      } as unknown as Application;
+      applicationRepo.findOne.mockResolvedValue(emailSentApp);
+      await expect(service.addReviewer(10, 5)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
 
-      const mockCriteria = { id: 3 };
-      screeningReviewRepo.find.mockResolvedValue([
-        {
-          assignment: {
-            recruiter: { id: 1 },
-            application: { id: 10 },
-          },
-          scores: [{ criteria: mockCriteria, score: 4 }],
-        } as unknown as ScreeningReview,
-      ]);
+    it('throws ConflictException when recruiter is already assigned', async () => {
+      applicationRepo.findOne.mockResolvedValue(mockApp);
+      recruiterRepo.findOne.mockResolvedValue(mockRecruiter);
+      assignmentRepo.findOne.mockResolvedValue({ id: 1 } as Assignment);
+      await expect(service.addReviewer(10, 5)).rejects.toThrow(
+        ConflictException,
+      );
+    });
 
-      const savedAssignment = { id: 99 } as unknown as Assignment;
-      const savedReview = { id: 50 } as unknown as ScreeningReview;
+    it('creates a new assignment and returns info', async () => {
+      applicationRepo.findOne.mockResolvedValue(mockApp);
+      recruiterRepo.findOne.mockResolvedValue(mockRecruiter);
+      assignmentRepo.findOne.mockResolvedValue(null);
       assignmentRepo.create.mockImplementation((d) => d as Assignment);
-      assignmentRepo.save.mockResolvedValue(savedAssignment);
-      screeningReviewRepo.create.mockImplementation(
-        (d) => d as ScreeningReview,
-      );
-      screeningReviewRepo.save.mockResolvedValue(savedReview);
+      assignmentRepo.save.mockResolvedValue({ id: 20 } as Assignment);
 
-      await service.assignRecruiters([10], [1], 1);
+      const result = await service.addReviewer(10, 5);
 
-      expect(screeningReviewScoreRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          review: savedReview,
-          criteria: mockCriteria,
-          score: 4,
-        }),
+      expect(assignmentRepo.create).toHaveBeenCalledWith({
+        recruiter: mockRecruiter,
+        application: mockApp,
+      });
+      expect(result.assignmentId).toBe(20);
+      expect(result.recruiterName).toBe('Carol White');
+    });
+
+    it('resets roundStatus to IN_PROGRESS when app is AWAITING_ADMIN', async () => {
+      const awaitingApp = {
+        ...mockApp,
+        roundStatus: RoundStatus.AWAITING_ADMIN,
+      } as unknown as Application;
+
+      applicationRepo.findOne.mockResolvedValue(awaitingApp);
+      recruiterRepo.findOne.mockResolvedValue(mockRecruiter);
+      assignmentRepo.findOne.mockResolvedValue(null);
+      assignmentRepo.create.mockImplementation((d) => d as Assignment);
+      assignmentRepo.save.mockResolvedValue({ id: 21 } as Assignment);
+
+      await service.addReviewer(10, 5);
+
+      expect(applicationRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ roundStatus: RoundStatus.IN_PROGRESS }),
       );
-      expect(screeningReviewScoreRepo.save).toHaveBeenCalled();
+    });
+
+    it('does NOT save application when roundStatus is already IN_PROGRESS', async () => {
+      applicationRepo.findOne.mockResolvedValue(mockApp);
+      recruiterRepo.findOne.mockResolvedValue(mockRecruiter);
+      assignmentRepo.findOne.mockResolvedValue(null);
+      assignmentRepo.create.mockImplementation((d) => d as Assignment);
+      assignmentRepo.save.mockResolvedValue({ id: 22 } as Assignment);
+
+      await service.addReviewer(10, 5);
+
+      expect(applicationRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────
+  // removeReviewer
+  // ──────────────────────────────────────────────────────────────────────
+  describe('removeReviewer', () => {
+    const mockRecruiter = {
+      id: 5,
+      firstName: 'Carol',
+      lastName: 'White',
+    } as Recruiter;
+
+    const mockAssignment = {
+      id: 3,
+      recruiter: mockRecruiter,
+      application: {
+        id: 10,
+        roundStatus: RoundStatus.IN_PROGRESS,
+      } as Application,
+    } as unknown as Assignment;
+
+    it('throws NotFoundException when assignment does not exist', async () => {
+      assignmentRepo.findOne.mockResolvedValue(null);
+      await expect(service.removeReviewer(99)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws BadRequestException when application is in PENDING_EMAIL', async () => {
+      const appInPendingEmail = {
+        id: 10,
+        roundStatus: RoundStatus.PENDING_EMAIL,
+      } as Application;
+      assignmentRepo.findOne.mockResolvedValue({
+        ...mockAssignment,
+        application: appInPendingEmail,
+      });
+
+      await expect(service.removeReviewer(3)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(assignmentRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when application is in EMAIL_SENT', async () => {
+      const appInEmailSent = {
+        id: 10,
+        roundStatus: RoundStatus.EMAIL_SENT,
+      } as Application;
+      assignmentRepo.findOne.mockResolvedValue({
+        ...mockAssignment,
+        application: appInEmailSent,
+      });
+
+      await expect(service.removeReviewer(3)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(assignmentRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('returns conflict info when review exists and force is false', async () => {
+      assignmentRepo.findOne.mockResolvedValue(mockAssignment);
+      screeningReviewRepo.findOne.mockResolvedValue({
+        id: 7,
+      } as unknown as ScreeningReview);
+
+      const result = await service.removeReviewer(3, false);
+
+      expect(result).toMatchObject({
+        conflict: true,
+        hasReview: true,
+        recruiterName: 'Carol White',
+      });
+      expect(assignmentRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('deletes assignment when force is true even with a review', async () => {
+      assignmentRepo.findOne.mockResolvedValue(mockAssignment);
+      screeningReviewRepo.findOne.mockResolvedValue({
+        id: 7,
+      } as unknown as ScreeningReview);
+      assignmentRepo.find.mockResolvedValue([]);
+      screeningReviewRepo.count.mockResolvedValue(0);
+
+      const result = await service.removeReviewer(3, true);
+
+      expect(assignmentRepo.delete).toHaveBeenCalledWith({ id: 3 });
+      expect(result).toMatchObject({ conflict: false });
+    });
+
+    it('deletes assignment when no review exists', async () => {
+      assignmentRepo.findOne.mockResolvedValue(mockAssignment);
+      screeningReviewRepo.findOne.mockResolvedValue(null);
+      assignmentRepo.find.mockResolvedValue([]);
+      screeningReviewRepo.count.mockResolvedValue(0);
+
+      const result = await service.removeReviewer(3, false);
+
+      expect(assignmentRepo.delete).toHaveBeenCalledWith({ id: 3 });
+      expect(result).toMatchObject({
+        conflict: false,
+        roundStatus: RoundStatus.PENDING,
+      });
+    });
+
+    it('sets roundStatus to AWAITING_ADMIN when all remaining reviewers have reviewed', async () => {
+      const remainingAssignment = { id: 4 } as Assignment;
+      assignmentRepo.findOne.mockResolvedValue(mockAssignment);
+      screeningReviewRepo.findOne.mockResolvedValue(null);
+      assignmentRepo.find.mockResolvedValue([remainingAssignment]);
+      screeningReviewRepo.count.mockResolvedValue(1); // all reviewed
+
+      const result = await service.removeReviewer(3, false);
+
+      expect(applicationRepo.update).toHaveBeenCalledWith(
+        { id: 10 },
+        { roundStatus: RoundStatus.AWAITING_ADMIN },
+      );
+      expect(result).toMatchObject({
+        conflict: false,
+        roundStatus: RoundStatus.AWAITING_ADMIN,
+      });
+    });
+
+    it('sets roundStatus to IN_PROGRESS when some remaining reviewers have not reviewed', async () => {
+      const remaining = [{ id: 4 }, { id: 5 }] as Assignment[];
+      assignmentRepo.findOne.mockResolvedValue(mockAssignment);
+      screeningReviewRepo.findOne.mockResolvedValue(null);
+      assignmentRepo.find.mockResolvedValue(remaining);
+      screeningReviewRepo.count.mockResolvedValue(1); // not all reviewed
+
+      const result = await service.removeReviewer(3, false);
+
+      expect(applicationRepo.update).toHaveBeenCalledWith(
+        { id: 10 },
+        { roundStatus: RoundStatus.IN_PROGRESS },
+      );
+      expect(result).toMatchObject({
+        conflict: false,
+        roundStatus: RoundStatus.IN_PROGRESS,
+      });
+    });
+
+    it('sets roundStatus to PENDING when no assignments remain', async () => {
+      assignmentRepo.findOne.mockResolvedValue(mockAssignment);
+      screeningReviewRepo.findOne.mockResolvedValue(null);
+      assignmentRepo.find.mockResolvedValue([]);
+
+      const result = await service.removeReviewer(3, false);
+
+      expect(applicationRepo.update).toHaveBeenCalledWith(
+        { id: 10 },
+        { roundStatus: RoundStatus.PENDING },
+      );
+      expect(result).toMatchObject({
+        conflict: false,
+        roundStatus: RoundStatus.PENDING,
+      });
     });
   });
 });

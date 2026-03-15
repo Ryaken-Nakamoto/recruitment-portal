@@ -1,1 +1,73 @@
 /* You can add global styles to this file, and also import other style files */
+
+/* ── Glass design tokens ─────────────────────────────────────────────────── */
+:root {
+  /* Blur — more blur = closer to user */
+  --glass-blur-far:  10px;
+  --glass-blur-mid:  18px;
+  --glass-blur-near: 28px;
+
+  /* Background fill — lower opacity = more color shows through */
+  --glass-bg-far:   rgba(255, 255, 255, 0.48);
+  --glass-bg-mid:   rgba(255, 255, 255, 0.60);
+  --glass-bg-near:  rgba(255, 255, 255, 0.82);
+
+  /* Primary purple glass — banners, table headers */
+  --glass-bg-primary:     rgba(96,  90,  205, 0.72);
+  --glass-bg-primary-mid: rgba(76,  99,  210, 0.65);
+
+  /* The white edge highlight is what makes glass look like glass */
+  --glass-border:    rgba(255, 255, 255, 0.75);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.90);
+
+  /* Soft colored shadows so panels feel like they float */
+  --glass-shadow:      0 4px 20px rgba(96, 90, 205, 0.12);
+  --glass-shadow-near: 0 8px 36px rgba(96, 90, 205, 0.20);
+
+  /* C4C's physical offset shadow — kept for cards */
+  --c4c-shadow: #4A4A51;
+}
+
+/* ── Background: C4C colors, made more vibrant so glass has something to show ── */
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+html {
+  background-color: #FDFDFD;
+  background-image:
+    radial-gradient(circle at 92% 8%,  rgba(184, 152, 248, 0.60) 0%, transparent 48%),
+    radial-gradient(circle at 8%  88%, rgba(225, 150, 255, 0.50) 0%, transparent 48%),
+    radial-gradient(circle at 55% 50%, rgba(96,  90,  205, 0.07) 0%, transparent 55%);
+  background-attachment: fixed;
+}
+
+body {
+  background: transparent;
+  min-height: 100vh;
+}
+
+#root {
+  position: relative;
+  background: transparent;
+}
+
+/* ── Amplify Authenticator — C4C purple theme ───────────────────────────── */
+[data-amplify-authenticator] {
+  --amplify-colors-brand-primary-10: #f4f3ff;
+  --amplify-colors-brand-primary-20: #e8e7ff;
+  --amplify-colors-brand-primary-40: #c8c5ff;
+  --amplify-colors-brand-primary-60: #9b96e8;
+  --amplify-colors-brand-primary-80: #605acd;
+  --amplify-colors-brand-primary-90: #4c63d2;
+  --amplify-colors-brand-primary-100: #3a4faa;
+  --amplify-colors-background-primary: rgba(255,255,255,0.70);
+  --amplify-colors-background-secondary: rgba(255,255,255,0.55);
+  --amplify-components-button-primary-background-color: #605acd;
+  --amplify-components-button-primary-hover-background-color: #4c63d2;
+  --amplify-components-tabs-item-active-color: #605acd;
+  --amplify-components-tabs-item-active-border-color: #605acd;
+  --amplify-components-fieldcontrol-focus-border-color: #605acd;
+}

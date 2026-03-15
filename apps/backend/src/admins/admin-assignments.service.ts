@@ -12,25 +12,12 @@ import { Application } from '../applications/entities/application.entity';
 import { Assignment } from '../applications/entities/assignment.entity';
 import { ScreeningReview } from '../applications/entities/screening-review.entity';
 import { ScreeningReviewScore } from '../applications/entities/screening-review-score.entity';
-import { InterviewReview } from '../applications/entities/interview-review.entity';
 import { ScreeningCriteria } from '../rubrics/entities/screening-criteria.entity';
 import { ApplicationRound } from '../applications/enums/application-round.enum';
-import { InterviewReviewStatus } from '../applications/enums/interview-review-status.enum';
 import { RoundStatus } from '../applications/enums/round-status.enum';
 import { Applicant } from '../applicants/entities/applicant.entity';
 import { Recruiter } from '../recruiters/entities/recruiter.entity';
 import { AccountStatus } from '../users/status';
-
-// Keyed by `${appId}:${recruiterId}` — used to restore screening reviews after reassignment
-type SavedScreeningReviews = Map<
-  string,
-  {
-    scores: Array<{
-      criteria: ScreeningReviewScore['criteria'];
-      score: number;
-    }>;
-  }
->;
 
 @Injectable()
 export class AdminAssignmentsService {
@@ -47,8 +34,6 @@ export class AdminAssignmentsService {
     private readonly screeningReviewRepo: Repository<ScreeningReview>,
     @InjectRepository(ScreeningReviewScore)
     private readonly screeningReviewScoreRepo: Repository<ScreeningReviewScore>,
-    @InjectRepository(InterviewReview)
-    private readonly interviewReviewRepo: Repository<InterviewReview>,
   ) {}
 
   async listApplicationsByRound(round?: ApplicationRound) {
@@ -86,8 +71,7 @@ export class AdminAssignmentsService {
     applicationIds: number[],
     recruiterIds: number[],
     recruitersPerApp: number,
-    force = false,
-  ): Promise<{ assigned: number }> {
+  ): Promise<{ assigned: number; skippedAppIds: number[] }> {
     if (applicationIds.length === 0) {
       throw new BadRequestException('applicationIds must not be empty');
     }
@@ -115,223 +99,303 @@ export class AdminAssignmentsService {
       throw new NotFoundException('One or more application IDs not found');
     }
 
-    if (!force) {
-      await this.checkReviewConflicts(applications);
+    // Hard deny: reject if any selected app has a closed recruitment window
+    const blockedIds = applications
+      .filter(
+        (a) =>
+          a.roundStatus === RoundStatus.PENDING_EMAIL ||
+          a.roundStatus === RoundStatus.EMAIL_SENT,
+      )
+      .map((a) => a.id);
+    if (blockedIds.length > 0) {
+      throw new BadRequestException({
+        message:
+          'Cannot assign reviewers: some applications have a closed recruitment window.',
+        blockedAppIds: blockedIds,
+      });
     }
 
-    // Delete only the interview review for each app's CURRENT round.
-    // Reviews from other rounds (e.g. screening reviews on an interview-round app) must be preserved.
-    for (const app of applications) {
-      if (app.round !== ApplicationRound.SCREENING) {
-        const reviewsToDelete = await this.interviewReviewRepo.find({
-          where: {
-            application: { id: app.id },
-            round: app.round as unknown as ApplicationRound,
-          },
-          select: ['id'],
-        });
-        if (reviewsToDelete.length > 0) {
-          await this.interviewReviewRepo.delete({
-            id: In(reviewsToDelete.map((r) => r.id)),
-          });
-        }
-      }
-    }
-
-    // Before deleting assignments, save screening review data for apps that have already
-    // completed screening (i.e. are now in an interview round). Deleting assignments cascades
-    // to delete their linked ScreeningReviews, so we restore them afterward.
-    const interviewApps = applications.filter(
-      (a) => a.round !== ApplicationRound.SCREENING,
-    );
-    const savedScreeningReviews = await this.collectScreeningReviews(
-      interviewApps,
+    // Load existing assignments to skip duplicates
+    const existingAssignments = await this.assignmentRepo.find({
+      where: { application: { id: In(applicationIds) } },
+      relations: ['recruiter', 'application'],
+    });
+    const existingPairs = new Set(
+      existingAssignments.map(
+        (a) =>
+          `${(a.application as Application).id}:${
+            (a.recruiter as Recruiter).id
+          }`,
+      ),
     );
 
-    // Delete all existing assignments — cascades ScreeningReview + ScreeningReviewScore
-    await this.assignmentRepo.delete({ application: In(applicationIds) });
-
-    // Round-robin assignment
+    // Round-robin assignment — skip pairs that already exist
     const K = recruiters.length;
     let assigned = 0;
-    // Track new assignments by `${appId}:${recruiterId}` for screening-review restoration
-    const newAssignmentMap = new Map<string, Assignment>();
+    const appsWithNewAssignments = new Set<number>();
+    const skippedAppIds = new Set<number>();
 
     for (let i = 0; i < applications.length; i++) {
       for (let j = 0; j < recruitersPerApp; j++) {
         const recruiter = recruiters[(i * recruitersPerApp + j) % K];
+        const key = `${applications[i].id}:${recruiter.id}`;
+        if (existingPairs.has(key)) {
+          skippedAppIds.add(applications[i].id);
+          continue;
+        }
+
         const assignment = this.assignmentRepo.create({
           recruiter,
           application: applications[i],
         });
-        const saved = await this.assignmentRepo.save(assignment);
-        newAssignmentMap.set(`${applications[i].id}:${recruiter.id}`, saved);
+        await this.assignmentRepo.save(assignment);
+        appsWithNewAssignments.add(applications[i].id);
         assigned++;
       }
     }
 
-    // Restore screening reviews for recruiters who are still assigned after the reassignment.
-    // If a recruiter was removed from the new set their historical screening data cannot be
-    // preserved without a schema change (Assignment needs a `round` column).
-    for (const [key, { scores }] of savedScreeningReviews) {
-      const newAssignment = newAssignmentMap.get(key);
-      if (newAssignment) {
-        const restoredReview = this.screeningReviewRepo.create({
-          assignment: newAssignment,
-        });
-        const savedReview = await this.screeningReviewRepo.save(restoredReview);
-        if (scores.length > 0) {
-          const scoreEntities = scores.map((s) =>
-            this.screeningReviewScoreRepo.create({
-              review: savedReview,
-              criteria: s.criteria as unknown as ScreeningCriteria,
-              score: s.score,
-            }),
-          );
-          await this.screeningReviewScoreRepo.save(scoreEntities);
-        }
-      } else {
-        const [appId, recruiterId] = key.split(':');
-        this.logger.warn(
-          `Screening review for recruiter ${recruiterId} on application ${appId} could not be preserved — recruiter removed from the new assignment set`,
-        );
-      }
-    }
-
-    // Mark each application IN_PROGRESS now that at least one recruiter is assigned
-    await this.applicationRepo.update(
-      { id: In(applicationIds) },
-      { roundStatus: RoundStatus.IN_PROGRESS },
+    // For apps that received new assignments, reset PENDING/AWAITING_ADMIN → IN_PROGRESS
+    const appsToUpdate = applications.filter(
+      (a) =>
+        appsWithNewAssignments.has(a.id) &&
+        (a.roundStatus === RoundStatus.PENDING ||
+          a.roundStatus === RoundStatus.AWAITING_ADMIN),
     );
+    if (appsToUpdate.length > 0) {
+      await this.applicationRepo.update(
+        { id: In(appsToUpdate.map((a) => a.id)) },
+        { roundStatus: RoundStatus.IN_PROGRESS },
+      );
+    }
 
     this.logger.log(
-      `Replaced assignments for ${applications.length} applications, created ${assigned} new assignments`,
+      `Added ${assigned} new assignments across ${applications.length} applications (${skippedAppIds.size} apps had duplicates skipped)`,
     );
-    return { assigned };
+    return { assigned, skippedAppIds: Array.from(skippedAppIds) };
   }
 
-  // Checks only the reviews relevant to each application's CURRENT round.
-  // Screening reviews on interview-round apps (from a completed screening phase) are not conflicts.
-  private async checkReviewConflicts(
-    applications: Application[],
-  ): Promise<void> {
-    // Screening-round apps: block if any screening review already exists
-    const screeningApps = applications.filter(
-      (a) => a.round === ApplicationRound.SCREENING,
-    );
-    if (screeningApps.length > 0) {
-      const assignments = await this.assignmentRepo.find({
-        where: { application: { id: In(screeningApps.map((a) => a.id)) } },
-        relations: ['application', 'application.applicant'],
-      });
-
-      if (assignments.length > 0) {
-        const submittedReviews = await this.screeningReviewRepo.find({
-          where: { assignment: { id: In(assignments.map((a) => a.id)) } },
-          relations: ['assignment'],
-        });
-
-        if (submittedReviews.length > 0) {
-          const assignmentById = new Map(assignments.map((a) => [a.id, a]));
-          const appMap = new Map<
-            number,
-            { id: number; applicantName: string }
-          >();
-          for (const review of submittedReviews) {
-            const assignment = assignmentById.get(
-              (review.assignment as Assignment).id,
-            )!;
-            const app = assignment.application as Application;
-            const applicant = app.applicant as Applicant;
-            if (!appMap.has(app.id)) {
-              appMap.set(app.id, {
-                id: app.id,
-                applicantName: applicant.name,
-              });
-            }
-          }
-          throw new ConflictException({
-            statusCode: 409,
-            blockType: 'submitted',
-            conflictingApps: Array.from(appMap.values()),
-          });
-        }
-      }
+  async getApplicationReviews(applicationId: number) {
+    const application = await this.applicationRepo.findOne({
+      where: { id: applicationId },
+    });
+    if (!application) {
+      throw new NotFoundException(`Application ${applicationId} not found`);
     }
 
-    // Interview-round apps: block only if the review for THAT SPECIFIC round is non-draft
-    const interviewApps = applications.filter(
-      (a) => a.round !== ApplicationRound.SCREENING,
-    );
-    const appMap = new Map<number, { id: number; applicantName: string }>();
-
-    for (const app of interviewApps) {
-      const blockingReviews = await this.interviewReviewRepo.find({
-        where: {
-          application: { id: app.id },
-          round: app.round as unknown as ApplicationRound,
-          status: In([
-            InterviewReviewStatus.PENDING_APPROVAL,
-            InterviewReviewStatus.APPROVED,
-          ]),
-        },
-        relations: ['application', 'application.applicant'],
-      });
-
-      for (const review of blockingReviews) {
-        const a = review.application as Application;
-        const applicant = a.applicant as Applicant;
-        if (!appMap.has(a.id)) {
-          appMap.set(a.id, {
-            id: a.id,
-            applicantName: applicant.name,
-          });
-        }
-      }
-    }
-
-    if (appMap.size > 0) {
-      throw new ConflictException({
-        statusCode: 409,
-        blockType: 'in_progress',
-        conflictingApps: Array.from(appMap.values()),
-      });
-    }
-  }
-
-  // Saves screening review data for interview-round apps so it can be restored after
-  // assignments are deleted. Keyed by `${appId}:${recruiterId}`.
-  private async collectScreeningReviews(
-    interviewApps: Application[],
-  ): Promise<SavedScreeningReviews> {
-    const result: SavedScreeningReviews = new Map();
-    if (interviewApps.length === 0) return result;
-
-    const reviews = await this.screeningReviewRepo.find({
-      where: {
-        assignment: { application: { id: In(interviewApps.map((a) => a.id)) } },
-      },
-      relations: [
-        'assignment',
-        'assignment.recruiter',
-        'assignment.application',
-        'scores',
-        'scores.criteria',
-      ],
+    const assignments = await this.assignmentRepo.find({
+      where: { application: { id: applicationId } },
+      relations: ['recruiter'],
     });
 
-    for (const review of reviews) {
-      const assignment = review.assignment as Assignment;
-      const recruiter = assignment.recruiter as Recruiter;
-      const app = assignment.application as Application;
-      result.set(`${app.id}:${recruiter.id}`, {
-        scores: (review.scores as ScreeningReviewScore[]).map((s) => ({
-          criteria: s.criteria,
-          score: s.score,
-        })),
-      });
+    if (assignments.length === 0) {
+      return [];
     }
 
-    return result;
+    const assignmentIds = assignments.map((a) => a.id);
+    const reviews = await this.screeningReviewRepo.find({
+      where: { assignment: { id: In(assignmentIds) } },
+      relations: ['assignment', 'scores', 'scores.criteria'],
+    });
+
+    const reviewByAssignmentId = new Map(
+      reviews.map((r) => [(r.assignment as Assignment).id, r]),
+    );
+
+    return assignments.map((a) => {
+      const recruiter = a.recruiter as Recruiter;
+      const review = reviewByAssignmentId.get(a.id);
+      const recruiterName = `${recruiter.firstName} ${recruiter.lastName}`;
+
+      if (!review) {
+        return {
+          assignmentId: a.id,
+          recruiterName,
+          reviewStatus: 'not_started' as const,
+          notes: a.notes,
+          rubricCriteria: [],
+        };
+      }
+
+      const scores = review.scores as ScreeningReviewScore[];
+      return {
+        assignmentId: a.id,
+        recruiterName,
+        reviewStatus: 'submitted' as const,
+        notes: a.notes,
+        rubricCriteria: scores.map((s) => {
+          const criteria = s.criteria as ScreeningCriteria;
+          return {
+            id: criteria.id,
+            name: criteria.name,
+            oneDescription: criteria.oneDescription,
+            twoDescription: criteria.twoDescription,
+            threeDescription: criteria.threeDescription,
+            score: s.score,
+          };
+        }),
+      };
+    });
+  }
+
+  async getApplicationAssignments(applicationId: number) {
+    const application = await this.applicationRepo.findOne({
+      where: { id: applicationId },
+    });
+    if (!application) {
+      throw new NotFoundException(`Application ${applicationId} not found`);
+    }
+
+    const assignments = await this.assignmentRepo.find({
+      where: { application: { id: applicationId } },
+      relations: ['recruiter'],
+    });
+
+    const assignmentIds = assignments.map((a) => a.id);
+    const reviews =
+      assignmentIds.length > 0
+        ? await this.screeningReviewRepo.find({
+            where: { assignment: { id: In(assignmentIds) } },
+            relations: ['assignment'],
+          })
+        : [];
+    const reviewedIds = new Set(
+      reviews.map((r) => (r.assignment as Assignment).id),
+    );
+
+    return assignments.map((a) => ({
+      assignmentId: a.id,
+      recruiterId: (a.recruiter as Recruiter).id,
+      recruiterName: `${(a.recruiter as Recruiter).firstName} ${
+        (a.recruiter as Recruiter).lastName
+      }`,
+      reviewStatus: reviewedIds.has(a.id) ? 'submitted' : 'not_started',
+    }));
+  }
+
+  async addReviewer(applicationId: number, recruiterId: number) {
+    const application = await this.applicationRepo.findOne({
+      where: { id: applicationId },
+      relations: ['applicant'],
+    });
+    if (!application) {
+      throw new NotFoundException(`Application ${applicationId} not found`);
+    }
+
+    if (
+      application.roundStatus === RoundStatus.PENDING_EMAIL ||
+      application.roundStatus === RoundStatus.EMAIL_SENT
+    ) {
+      throw new BadRequestException(
+        'Cannot add reviewer: the recruitment window for this application has closed.',
+      );
+    }
+
+    const recruiter = await this.recruiterRepo.findOne({
+      where: { id: recruiterId },
+    });
+    if (!recruiter) {
+      throw new NotFoundException(`Recruiter ${recruiterId} not found`);
+    }
+
+    const existing = await this.assignmentRepo.findOne({
+      where: {
+        application: { id: applicationId },
+        recruiter: { id: recruiterId },
+      },
+    });
+    if (existing) {
+      throw new ConflictException(
+        'Recruiter is already assigned to this application',
+      );
+    }
+
+    const assignment = this.assignmentRepo.create({ recruiter, application });
+    const saved = await this.assignmentRepo.save(assignment);
+
+    if (application.roundStatus === RoundStatus.AWAITING_ADMIN) {
+      application.roundStatus = RoundStatus.IN_PROGRESS;
+      await this.applicationRepo.save(application);
+      this.logger.log(
+        `Application ${applicationId} reset to IN_PROGRESS after adding recruiter ${recruiterId}`,
+      );
+    }
+
+    this.logger.log(
+      `Added recruiter ${recruiterId} to application ${applicationId}, assignment id ${saved.id}`,
+    );
+
+    return {
+      assignmentId: saved.id,
+      recruiterId: recruiter.id,
+      recruiterName: `${recruiter.firstName} ${recruiter.lastName}`,
+      roundStatus: application.roundStatus,
+    };
+  }
+
+  async removeReviewer(assignmentId: number, force = false) {
+    const assignment = await this.assignmentRepo.findOne({
+      where: { id: assignmentId },
+      relations: ['recruiter', 'application'],
+    });
+    if (!assignment) {
+      throw new NotFoundException(`Assignment ${assignmentId} not found`);
+    }
+
+    const recruiter = assignment.recruiter as Recruiter;
+    const app = assignment.application as Application;
+
+    if (
+      app.roundStatus === RoundStatus.PENDING_EMAIL ||
+      app.roundStatus === RoundStatus.EMAIL_SENT
+    ) {
+      throw new BadRequestException(
+        'Cannot remove reviewer: the recruitment window for this application has closed.',
+      );
+    }
+
+    const review = await this.screeningReviewRepo.findOne({
+      where: { assignment: { id: assignmentId } },
+    });
+
+    if (review && !force) {
+      return {
+        conflict: true,
+        hasReview: true,
+        recruiterName: `${recruiter.firstName} ${recruiter.lastName}`,
+      };
+    }
+
+    await this.assignmentRepo.delete({ id: assignmentId });
+    this.logger.log(
+      `Removed assignment ${assignmentId} (recruiter ${recruiter.id}) from application ${app.id}`,
+    );
+
+    // Re-check completion status
+    const remaining = await this.assignmentRepo.find({
+      where: { application: { id: app.id } },
+    });
+
+    let newStatus: RoundStatus;
+    if (remaining.length === 0) {
+      newStatus = RoundStatus.PENDING;
+    } else {
+      const reviewedCount = await this.screeningReviewRepo.count({
+        where: { assignment: { id: In(remaining.map((a) => a.id)) } },
+      });
+      newStatus =
+        reviewedCount === remaining.length
+          ? RoundStatus.AWAITING_ADMIN
+          : RoundStatus.IN_PROGRESS;
+    }
+
+    await this.applicationRepo.update(
+      { id: app.id },
+      { roundStatus: newStatus },
+    );
+    this.logger.log(
+      `Application ${app.id} roundStatus updated to ${newStatus}`,
+    );
+
+    return { conflict: false, roundStatus: newStatus };
   }
 }

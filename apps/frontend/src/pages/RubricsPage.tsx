@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   Box,
@@ -7,8 +8,10 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  IconButton,
   Typography,
 } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import apiClient from '@api/apiClient';
 import { ScreeningRubricDto, InterviewRubricDto } from '@api/dtos/rubric.dto';
 import { ScreeningCriteriaTable } from '@components/ScreeningCriteriaTable';
@@ -20,6 +23,7 @@ type SelectedRubric =
   | null;
 
 const RubricsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [selected, setSelected] = useState<SelectedRubric>(null);
 
   const { data, isLoading, isError } = useQuery({
@@ -45,6 +49,23 @@ const RubricsPage: React.FC = () => {
 
   return (
     <Box p={4}>
+      <Box sx={{ mb: 2 }}>
+        <IconButton
+          onClick={() => navigate('/admin/home')}
+          sx={{ mr: 1 }}
+          aria-label="back"
+        >
+          <ArrowBackIcon />
+        </IconButton>
+        <Typography
+          variant="caption"
+          component="span"
+          sx={{ cursor: 'pointer' }}
+          onClick={() => navigate('/admin/home')}
+        >
+          Back to Home
+        </Typography>
+      </Box>
       <Typography variant="h5" fontWeight="bold" mb={3}>
         Rubrics
       </Typography>

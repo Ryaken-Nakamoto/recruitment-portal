@@ -65,15 +65,9 @@ const EmailEditorDialog: React.FC<Props> = ({
         <DialogContent>
           <Stack spacing={2} mt={1}>
             <Alert severity="info">
-              Variables wrap any word in{' '}
-              <code>
-                {'{{'}
-                {'}}'}{' '}
-              </code>
-              . Tier 1 variables below are filled automatically from the
-              applicant&apos;s profile. To create your own Tier 2 variable (e.g.
-              a Calendly link), type <code>{'{{calendlyLink}}'}</code> directly
-              in the body — you&apos;ll be prompted to fill it in when sending.
+              Click below to insert <code>{'{{firstName}}'}</code> into your
+              template. It will be automatically filled with the
+              applicant&apos;s first name when the email is sent.
             </Alert>
 
             <Box>
@@ -83,7 +77,7 @@ const EmailEditorDialog: React.FC<Props> = ({
                 gutterBottom
                 display="block"
               >
-                Tier 1 — auto-filled variables
+                Auto-filled variables
               </Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap">
                 {autoVariables.map((v) => (

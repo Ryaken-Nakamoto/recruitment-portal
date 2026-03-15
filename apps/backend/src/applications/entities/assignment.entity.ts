@@ -4,6 +4,7 @@ import {
   ManyToOne,
   CreateDateColumn,
   Unique,
+  Column,
 } from 'typeorm';
 import { Relation } from 'typeorm';
 import { Recruiter } from '../../recruiters/entities/recruiter.entity';
@@ -23,4 +24,7 @@ export class Assignment {
 
   @CreateDateColumn()
   assignedAt: Date;
+
+  @Column({ type: 'text', nullable: true, default: null })
+  notes: string | null;
 }

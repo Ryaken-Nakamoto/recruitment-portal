@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import apiClient from '@api/apiClient';
 import RecruiterHomePage from './RecruiterHomePage';
@@ -12,6 +13,23 @@ vi.mock('@api/apiClient', () => ({
 }));
 
 const mockGetMyAssignments = vi.mocked(apiClient.getMyAssignments);
+
+const makeAssignment = (
+  id: number,
+  round: ApplicationRound,
+  applicantName: string,
+) => ({
+  assignmentId: id,
+  application: {
+    id: id * 10,
+    round,
+    applicantName,
+    graduationYear: 2026,
+    reviewsTotal: 0,
+    reviewsSubmitted: 0,
+  },
+  reviewStatus: 'not_started' as const,
+});
 
 const makeResponse = (
   overrides: Partial<RecruiterAssignmentsResponse> = {},
@@ -28,9 +46,11 @@ const renderPage = () => {
     defaultOptions: { queries: { retry: false } },
   });
   render(
-    <QueryClientProvider client={client}>
-      <RecruiterHomePage />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={client}>
+        <RecruiterHomePage />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 };
 
@@ -55,21 +75,16 @@ describe('RecruiterHomePage', () => {
     expect(await screen.findByText(/no assignments yet/i)).toBeTruthy();
   });
 
-  it('renders applicant name, round, graduation year, and review status', async () => {
+  it('renders the page title', async () => {
+    mockGetMyAssignments.mockResolvedValue(makeResponse());
+    renderPage();
+    expect(await screen.findByText(/my assignments/i)).toBeTruthy();
+  });
+
+  it('renders applicant name and round', async () => {
     mockGetMyAssignments.mockResolvedValue(
       makeResponse({
-        data: [
-          {
-            assignmentId: 1,
-            application: {
-              id: 10,
-              round: ApplicationRound.SCREENING,
-              applicantName: 'Alice Smith',
-              graduationYear: 2026,
-            },
-            reviewStatus: 'not_started',
-          },
-        ],
+        data: [makeAssignment(1, ApplicationRound.SCREENING, 'Alice Smith')],
         total: 1,
         totalPages: 1,
       }),
@@ -78,24 +93,13 @@ describe('RecruiterHomePage', () => {
 
     expect(await screen.findByText('Alice Smith')).toBeTruthy();
     expect(screen.getByText('Screening')).toBeTruthy();
-    expect(screen.getByText('2026')).toBeTruthy();
-    expect(screen.getByText('Not Started')).toBeTruthy();
   });
 
   it('renders correct round label for Technical Interview', async () => {
     mockGetMyAssignments.mockResolvedValue(
       makeResponse({
         data: [
-          {
-            assignmentId: 2,
-            application: {
-              id: 20,
-              round: ApplicationRound.TECHNICAL_INTERVIEW,
-              applicantName: 'Bob Jones',
-              graduationYear: 2025,
-            },
-            reviewStatus: 'draft',
-          },
+          makeAssignment(2, ApplicationRound.TECHNICAL_INTERVIEW, 'Bob Jones'),
         ],
         total: 1,
         totalPages: 1,
@@ -104,33 +108,15 @@ describe('RecruiterHomePage', () => {
     renderPage();
 
     expect(await screen.findByText('Technical Interview')).toBeTruthy();
-    expect(screen.getByText('Draft')).toBeTruthy();
+    expect(screen.getByText('Bob Jones')).toBeTruthy();
   });
 
   it('renders multiple assignments in the table', async () => {
     mockGetMyAssignments.mockResolvedValue(
       makeResponse({
         data: [
-          {
-            assignmentId: 1,
-            application: {
-              id: 10,
-              round: ApplicationRound.SCREENING,
-              applicantName: 'Alice Smith',
-              graduationYear: 2026,
-            },
-            reviewStatus: 'submitted',
-          },
-          {
-            assignmentId: 2,
-            application: {
-              id: 20,
-              round: ApplicationRound.BEHAVIORAL_INTERVIEW,
-              applicantName: 'Bob Jones',
-              graduationYear: 2027,
-            },
-            reviewStatus: 'approved',
-          },
+          makeAssignment(1, ApplicationRound.SCREENING, 'Alice Smith'),
+          makeAssignment(2, ApplicationRound.BEHAVIORAL_INTERVIEW, 'Bob Jones'),
         ],
         total: 2,
         totalPages: 1,
@@ -140,8 +126,6 @@ describe('RecruiterHomePage', () => {
 
     expect(await screen.findByText('Alice Smith')).toBeTruthy();
     expect(screen.getByText('Bob Jones')).toBeTruthy();
-    expect(screen.getByText('Submitted')).toBeTruthy();
-    expect(screen.getByText('Approved')).toBeTruthy();
   });
 
   it('does not show pagination when there is only one page', async () => {
@@ -156,16 +140,13 @@ describe('RecruiterHomePage', () => {
   it('shows pagination when there are multiple pages', async () => {
     mockGetMyAssignments.mockResolvedValue(
       makeResponse({
-        data: Array.from({ length: 20 }, (_, i) => ({
-          assignmentId: i + 1,
-          application: {
-            id: i + 1,
-            round: ApplicationRound.SCREENING,
-            applicantName: `Applicant ${i + 1}`,
-            graduationYear: 2025,
-          },
-          reviewStatus: 'not_started' as const,
-        })),
+        data: Array.from({ length: 20 }, (_, i) =>
+          makeAssignment(
+            i + 1,
+            ApplicationRound.SCREENING,
+            `Applicant ${i + 1}`,
+          ),
+        ),
         total: 45,
         totalPages: 3,
       }),

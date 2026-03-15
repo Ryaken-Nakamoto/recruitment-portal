@@ -1,10 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository, Relation } from 'typeorm';
+import { In, Repository, Relation, SelectQueryBuilder } from 'typeorm';
 import { Readable } from 'stream';
 
 import { ApplicationsService } from './applications.service';
 import { Application } from './entities/application.entity';
+import { Assignment } from './entities/assignment.entity';
+import { ScreeningReview } from './entities/screening-review.entity';
+import { ScreeningReviewScore } from './entities/screening-review-score.entity';
 import { Applicant } from '../applicants/entities/applicant.entity';
 import { RawGoogleForm } from '../raw-google-forms/entities/raw-google-form.entity';
 import { AcademicYear } from '../applicants/enums/academic-year.enum';
@@ -18,14 +21,26 @@ import { S3Service } from '../util/s3/s3.service';
 describe('ApplicationsService', () => {
   let service: ApplicationsService;
   let applicationRepo: jest.Mocked<Repository<Application>>;
+  let assignmentRepo: jest.Mocked<Repository<Assignment>>;
+  let screeningReviewRepo: jest.Mocked<Repository<ScreeningReview>>;
   let mockS3Service: { getResume: jest.Mock };
 
   beforeEach(async () => {
     const mockApplicationRepo = {
       findOne: jest.fn(),
+      find: jest.fn().mockResolvedValue([]),
       create: jest.fn().mockImplementation((d) => d),
       save: jest.fn(),
       findAndCount: jest.fn(),
+      createQueryBuilder: jest.fn(),
+    };
+
+    const mockAssignmentRepo = {
+      find: jest.fn().mockResolvedValue([]),
+    };
+
+    const mockScreeningReviewRepo = {
+      find: jest.fn().mockResolvedValue([]),
     };
 
     mockS3Service = { getResume: jest.fn() };
@@ -38,6 +53,14 @@ describe('ApplicationsService', () => {
           useValue: mockApplicationRepo,
         },
         {
+          provide: getRepositoryToken(Assignment),
+          useValue: mockAssignmentRepo,
+        },
+        {
+          provide: getRepositoryToken(ScreeningReview),
+          useValue: mockScreeningReviewRepo,
+        },
+        {
           provide: S3Service,
           useValue: mockS3Service,
         },
@@ -46,6 +69,8 @@ describe('ApplicationsService', () => {
 
     service = module.get<ApplicationsService>(ApplicationsService);
     applicationRepo = module.get(getRepositoryToken(Application));
+    assignmentRepo = module.get(getRepositoryToken(Assignment));
+    screeningReviewRepo = module.get(getRepositoryToken(ScreeningReview));
   });
 
   it('should be defined', () => {
@@ -187,6 +212,7 @@ describe('ApplicationsService', () => {
 
       expect(applicationRepo.findAndCount).toHaveBeenCalledWith({
         relations: ['applicant'],
+        where: {},
         skip: 0,
         take: 20,
         order: { submittedAt: 'DESC' },
@@ -206,6 +232,7 @@ describe('ApplicationsService', () => {
 
       expect(applicationRepo.findAndCount).toHaveBeenCalledWith({
         relations: ['applicant'],
+        where: {},
         skip: 20,
         take: 20,
         order: { submittedAt: 'DESC' },
@@ -222,6 +249,295 @@ describe('ApplicationsService', () => {
       expect(result.data).toHaveLength(0);
       expect(result.total).toBe(0);
       expect(result.totalPages).toBe(0);
+    });
+
+    it('returns averageScore null when no reviews are submitted', async () => {
+      const mockApps: Application[] = [
+        {
+          id: 1,
+          applicant: mockApplicant1,
+          rawGoogleForm: undefined as unknown as Relation<RawGoogleForm>,
+          round: ApplicationRound.SCREENING,
+          roundStatus: RoundStatus.IN_PROGRESS,
+          finalDecision: null,
+          submittedAt: new Date('2026-03-01'),
+        },
+      ];
+      applicationRepo.findAndCount.mockResolvedValue([mockApps, 1]);
+
+      const result = await service.listAll(1, 20);
+
+      expect(result.data[0].averageScore).toBeNull();
+    });
+
+    it('returns averageScore null when only some reviewers have submitted', async () => {
+      const mockApp: Application = {
+        id: 1,
+        applicant: mockApplicant1,
+        rawGoogleForm: undefined as unknown as Relation<RawGoogleForm>,
+        round: ApplicationRound.SCREENING,
+        roundStatus: RoundStatus.IN_PROGRESS,
+        finalDecision: null,
+        submittedAt: new Date('2026-03-01'),
+      };
+      applicationRepo.findAndCount.mockResolvedValue([[mockApp], 1]);
+      assignmentRepo.find.mockResolvedValue([
+        { id: 10, application: { id: 1 } } as unknown as Assignment,
+        { id: 11, application: { id: 1 } } as unknown as Assignment,
+      ]);
+      // Only 1 of 2 submitted
+      screeningReviewRepo.find.mockResolvedValue([
+        {
+          assignment: { id: 10 },
+          scores: [{ score: 2 } as unknown as ScreeningReviewScore],
+        } as unknown as ScreeningReview,
+      ]);
+
+      const result = await service.listAll(1, 20);
+
+      expect(result.data[0].averageScore).toBeNull();
+    });
+
+    it('computes averageScore when all reviewers have submitted', async () => {
+      const mockApp: Application = {
+        id: 1,
+        applicant: mockApplicant1,
+        rawGoogleForm: undefined as unknown as Relation<RawGoogleForm>,
+        round: ApplicationRound.SCREENING,
+        roundStatus: RoundStatus.AWAITING_ADMIN,
+        finalDecision: null,
+        submittedAt: new Date('2026-03-01'),
+      };
+      applicationRepo.findAndCount.mockResolvedValue([[mockApp], 1]);
+      assignmentRepo.find.mockResolvedValue([
+        { id: 10, application: { id: 1 } } as unknown as Assignment,
+        { id: 11, application: { id: 1 } } as unknown as Assignment,
+      ]);
+      screeningReviewRepo.find.mockResolvedValue([
+        {
+          assignment: { id: 10 },
+          scores: [
+            { score: 2 } as unknown as ScreeningReviewScore,
+            { score: 3 } as unknown as ScreeningReviewScore,
+          ],
+        } as unknown as ScreeningReview,
+        {
+          assignment: { id: 11 },
+          scores: [
+            { score: 1 } as unknown as ScreeningReviewScore,
+            { score: 2 } as unknown as ScreeningReviewScore,
+          ],
+        } as unknown as ScreeningReview,
+      ]);
+
+      const result = await service.listAll(1, 20);
+
+      // (2 + 3 + 1 + 2) / 4 = 2.0
+      expect(result.data[0].averageScore).toBe(2);
+    });
+
+    it('rounds averageScore to 2 decimal places', async () => {
+      const mockApp: Application = {
+        id: 1,
+        applicant: mockApplicant1,
+        rawGoogleForm: undefined as unknown as Relation<RawGoogleForm>,
+        round: ApplicationRound.SCREENING,
+        roundStatus: RoundStatus.AWAITING_ADMIN,
+        finalDecision: null,
+        submittedAt: new Date('2026-03-01'),
+      };
+      applicationRepo.findAndCount.mockResolvedValue([[mockApp], 1]);
+      assignmentRepo.find.mockResolvedValue([
+        { id: 10, application: { id: 1 } } as unknown as Assignment,
+      ]);
+      screeningReviewRepo.find.mockResolvedValue([
+        {
+          assignment: { id: 10 },
+          scores: [
+            { score: 1 } as unknown as ScreeningReviewScore,
+            { score: 1 } as unknown as ScreeningReviewScore,
+            { score: 2 } as unknown as ScreeningReviewScore,
+          ],
+        } as unknown as ScreeningReview,
+      ]);
+
+      const result = await service.listAll(1, 20);
+
+      // (1 + 1 + 2) / 3 = 1.33
+      expect(result.data[0].averageScore).toBe(1.33);
+    });
+
+    it('filters by roundStatus when provided', async () => {
+      applicationRepo.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.listAll(1, 20, RoundStatus.PENDING);
+
+      expect(applicationRepo.findAndCount).toHaveBeenCalledWith({
+        relations: ['applicant'],
+        where: { roundStatus: RoundStatus.PENDING },
+        skip: 0,
+        take: 20,
+        order: { submittedAt: 'DESC' },
+      });
+    });
+
+    it('does not filter when roundStatus is undefined', async () => {
+      applicationRepo.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.listAll(1, 20, undefined);
+
+      expect(applicationRepo.findAndCount).toHaveBeenCalledWith({
+        relations: ['applicant'],
+        where: {},
+        skip: 0,
+        take: 20,
+        order: { submittedAt: 'DESC' },
+      });
+    });
+
+    describe('sortAvgScore', () => {
+      // Builds a mock QueryBuilder that returns raw sorted IDs from getRawMany()
+      function buildMockQb(rawIds: { id: string }[] = []) {
+        const mockQb = {
+          select: jest.fn().mockReturnThis(),
+          leftJoin: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          groupBy: jest.fn().mockReturnThis(),
+          orderBy: jest.fn().mockReturnThis(),
+          getRawMany: jest.fn().mockResolvedValue(rawIds),
+        };
+        applicationRepo.createQueryBuilder.mockReturnValue(
+          mockQb as unknown as SelectQueryBuilder<Application>,
+        );
+        return mockQb;
+      }
+
+      it('uses QueryBuilder when sortAvgScore is provided', async () => {
+        const mockQb = buildMockQb();
+
+        await service.listAll(1, 20, undefined, 'desc');
+
+        expect(applicationRepo.createQueryBuilder).toHaveBeenCalledWith('app');
+        expect(mockQb.getRawMany).toHaveBeenCalled();
+        expect(applicationRepo.findAndCount).not.toHaveBeenCalled();
+      });
+
+      it('uses findAndCount when sortAvgScore is not provided', async () => {
+        applicationRepo.findAndCount.mockResolvedValue([[], 0]);
+
+        await service.listAll(1, 20, undefined, undefined);
+
+        expect(applicationRepo.findAndCount).toHaveBeenCalled();
+        expect(applicationRepo.createQueryBuilder).not.toHaveBeenCalled();
+      });
+
+      it('orders ASC when sortAvgScore is asc', async () => {
+        const mockQb = buildMockQb();
+
+        await service.listAll(1, 20, undefined, 'asc');
+
+        expect(mockQb.orderBy).toHaveBeenCalledWith(
+          'AVG(score.score)',
+          'ASC',
+          'NULLS LAST',
+        );
+      });
+
+      it('orders DESC when sortAvgScore is desc', async () => {
+        const mockQb = buildMockQb();
+
+        await service.listAll(1, 20, undefined, 'desc');
+
+        expect(mockQb.orderBy).toHaveBeenCalledWith(
+          'AVG(score.score)',
+          'DESC',
+          'NULLS LAST',
+        );
+      });
+
+      it('applies roundStatus filter via where when provided', async () => {
+        const mockQb = buildMockQb();
+
+        await service.listAll(1, 20, RoundStatus.AWAITING_ADMIN, 'desc');
+
+        expect(mockQb.where).toHaveBeenCalledWith(
+          'app.roundStatus = :roundStatus',
+          { roundStatus: RoundStatus.AWAITING_ADMIN },
+        );
+      });
+
+      it('does not call where when roundStatus is undefined', async () => {
+        const mockQb = buildMockQb();
+
+        await service.listAll(1, 20, undefined, 'desc');
+
+        expect(mockQb.where).not.toHaveBeenCalled();
+      });
+
+      it('returns same DTO shape as findAndCount path', async () => {
+        const mockApplicant: Applicant = {
+          id: 1,
+          email: 'alice@example.com',
+          name: 'Alice Smith',
+          major: 'CS',
+          academicYear: AcademicYear.FIRST,
+          createdAt: new Date(),
+          application: undefined as unknown as Relation<Application>,
+        };
+        const mockApp: Application = {
+          id: 1,
+          applicant: mockApplicant,
+          rawGoogleForm: undefined as unknown as Relation<RawGoogleForm>,
+          round: ApplicationRound.SCREENING,
+          roundStatus: RoundStatus.AWAITING_ADMIN,
+          finalDecision: null,
+          submittedAt: new Date('2026-03-01'),
+        };
+        buildMockQb([{ id: '1' }]);
+        applicationRepo.find.mockResolvedValue([mockApp]);
+
+        const result = await service.listAll(
+          1,
+          20,
+          RoundStatus.AWAITING_ADMIN,
+          'desc',
+        );
+
+        expect(result.total).toBe(1);
+        expect(result.data[0].id).toBe(1);
+        expect(result.data[0].applicant.name).toBe('Alice Smith');
+      });
+
+      it('paginates correctly using sliced IDs', async () => {
+        // Page 2, limit 2, from 5 total sorted IDs
+        buildMockQb([
+          { id: '10' },
+          { id: '20' },
+          { id: '30' },
+          { id: '40' },
+          { id: '50' },
+        ]);
+        applicationRepo.find.mockResolvedValue([]);
+
+        const result = await service.listAll(2, 2, undefined, 'desc');
+
+        // total = 5, page 2 of 2 → IDs 30, 40
+        expect(result.total).toBe(5);
+        expect(result.totalPages).toBe(3);
+        expect(applicationRepo.find).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { id: In([30, 40]) } }),
+        );
+      });
+
+      it('returns empty data when pagedIds is empty', async () => {
+        buildMockQb([]); // no IDs
+
+        const result = await service.listAll(1, 20, undefined, 'desc');
+
+        expect(result.total).toBe(0);
+        expect(result.data).toHaveLength(0);
+        expect(applicationRepo.find).not.toHaveBeenCalled();
+      });
     });
   });
 

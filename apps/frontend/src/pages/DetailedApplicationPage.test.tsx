@@ -20,11 +20,15 @@ import type { ApplicationDetailResponse } from '@api/dtos/application-detail.dto
 vi.mock('@api/apiClient', () => ({
   default: {
     getApplicationDetail: vi.fn(),
+    getApplicationAssignments: vi.fn().mockResolvedValue([]),
+    getActiveRecruiters: vi.fn().mockResolvedValue([]),
+    getApplicationReviews: vi.fn().mockResolvedValue([]),
     downloadResume: vi.fn(),
   },
 }));
 
 const mockGetDetail = vi.mocked(apiClient.getApplicationDetail);
+const mockGetApplicationReviews = vi.mocked(apiClient.getApplicationReviews);
 
 const createQueryClient = () =>
   new QueryClient({
@@ -171,5 +175,160 @@ describe('DetailedApplicationPage', () => {
     await screen.findAllByText('Alice Smith');
     expect(screen.getByText('Resume')).toBeTruthy();
     expect(screen.getByTestId('resume-download-btn')).toBeTruthy();
+  });
+
+  describe('admin reviews section', () => {
+    it('shows "No reviewers have been assigned" when reviews array is empty', async () => {
+      mockGetDetail.mockResolvedValue(fullMockData);
+      mockGetApplicationReviews.mockResolvedValue([]);
+      renderPage();
+
+      await screen.findAllByText('Alice Smith');
+      expect(
+        await screen.findByText(
+          'No reviewers have been assigned to this application.',
+        ),
+      ).toBeTruthy();
+    });
+
+    it('shows reviewer name and "No review submitted yet" for not_started review', async () => {
+      mockGetDetail.mockResolvedValue(fullMockData);
+      mockGetApplicationReviews.mockResolvedValue([
+        {
+          assignmentId: 10,
+          recruiterName: 'Carol White',
+          reviewStatus: 'not_started',
+          notes: null,
+          rubricCriteria: [],
+        },
+      ]);
+      renderPage();
+
+      await screen.findAllByText('Alice Smith');
+      expect(await screen.findByText('Carol White')).toBeTruthy();
+      expect(screen.getByText('No review submitted yet.')).toBeTruthy();
+    });
+
+    it('shows reviewer name and criteria table for submitted review', async () => {
+      mockGetDetail.mockResolvedValue(fullMockData);
+      mockGetApplicationReviews.mockResolvedValue([
+        {
+          assignmentId: 10,
+          recruiterName: 'Dave Brown',
+          reviewStatus: 'submitted',
+          notes: 'Strong candidate',
+          rubricCriteria: [
+            {
+              id: 3,
+              name: 'Technical Skills',
+              oneDescription: 'Basic',
+              twoDescription: 'Intermediate',
+              threeDescription: 'Advanced',
+              score: 2,
+            },
+          ],
+        },
+      ]);
+      renderPage();
+
+      await screen.findAllByText('Alice Smith');
+      expect(await screen.findByText('Dave Brown')).toBeTruthy();
+      expect(screen.getByText('Technical Skills')).toBeTruthy();
+      expect(screen.getByText('Strong candidate')).toBeTruthy();
+    });
+
+    it('shows average score when all reviewers have submitted', async () => {
+      mockGetDetail.mockResolvedValue(fullMockData);
+      mockGetApplicationReviews.mockResolvedValue([
+        {
+          assignmentId: 10,
+          recruiterName: 'Carol White',
+          reviewStatus: 'submitted',
+          notes: null,
+          rubricCriteria: [
+            {
+              id: 1,
+              name: 'Criteria A',
+              oneDescription: '',
+              twoDescription: '',
+              threeDescription: '',
+              score: 2,
+            },
+            {
+              id: 2,
+              name: 'Criteria B',
+              oneDescription: '',
+              twoDescription: '',
+              threeDescription: '',
+              score: 3,
+            },
+          ],
+        },
+        {
+          assignmentId: 11,
+          recruiterName: 'Dave Brown',
+          reviewStatus: 'submitted',
+          notes: null,
+          rubricCriteria: [
+            {
+              id: 1,
+              name: 'Criteria A',
+              oneDescription: '',
+              twoDescription: '',
+              threeDescription: '',
+              score: 1,
+            },
+            {
+              id: 2,
+              name: 'Criteria B',
+              oneDescription: '',
+              twoDescription: '',
+              threeDescription: '',
+              score: 2,
+            },
+          ],
+        },
+      ]);
+      renderPage();
+
+      await screen.findAllByText('Alice Smith');
+      // (2 + 3 + 1 + 2) / 4 = 2.00
+      expect(await screen.findByText('Average Score')).toBeTruthy();
+      expect(screen.getByText('2.00 / 3')).toBeTruthy();
+    });
+
+    it('does not show average score when not all reviewers have submitted', async () => {
+      mockGetDetail.mockResolvedValue(fullMockData);
+      mockGetApplicationReviews.mockResolvedValue([
+        {
+          assignmentId: 10,
+          recruiterName: 'Carol White',
+          reviewStatus: 'submitted',
+          notes: null,
+          rubricCriteria: [
+            {
+              id: 1,
+              name: 'Criteria A',
+              oneDescription: '',
+              twoDescription: '',
+              threeDescription: '',
+              score: 2,
+            },
+          ],
+        },
+        {
+          assignmentId: 11,
+          recruiterName: 'Dave Brown',
+          reviewStatus: 'not_started',
+          notes: null,
+          rubricCriteria: [],
+        },
+      ]);
+      renderPage();
+
+      await screen.findAllByText('Alice Smith');
+      await screen.findByText('Carol White');
+      expect(screen.queryByText('Average Score')).toBeNull();
+    });
   });
 });

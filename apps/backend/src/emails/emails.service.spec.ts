@@ -64,12 +64,11 @@ describe('EmailsService', () => {
   });
 
   describe('update', () => {
-    it('should update subject only when body not provided', async () => {
+    it('should update subject', async () => {
       const email = {
         id: 1,
         subject: 'Old Subject',
         body: 'Hello {{firstName}}',
-        requiredVariables: [],
       } as Email;
       emailRepo.findOneBy.mockResolvedValue(email);
       emailRepo.save.mockResolvedValue({ ...email, subject: 'New Subject' });
@@ -77,78 +76,25 @@ describe('EmailsService', () => {
       const result = await service.update(1, { subject: 'New Subject' });
 
       expect(result.subject).toBe('New Subject');
-      // requiredVariables should not be re-parsed when body is unchanged
       expect(emailRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ subject: 'New Subject' }),
       );
     });
 
-    it('should re-parse requiredVariables when body changes', async () => {
+    it('should update body', async () => {
       const email = {
         id: 1,
         subject: 'Test',
         body: 'Old body',
-        requiredVariables: [],
       } as Email;
       emailRepo.findOneBy.mockResolvedValue(email);
       emailRepo.save.mockImplementation(async (e) => e as Email);
 
       const result = await service.update(1, {
-        body: 'Hello {{firstName}} sign up at {{calendlyLink}}',
+        body: 'New body with {{firstName}}',
       });
 
-      expect(result.requiredVariables).toEqual(['calendlyLink']);
-    });
-
-    it('should filter out AUTO_VARIABLES from requiredVariables', async () => {
-      const email = {
-        id: 1,
-        subject: 'Test',
-        body: '',
-        requiredVariables: [],
-      } as Email;
-      emailRepo.findOneBy.mockResolvedValue(email);
-      emailRepo.save.mockImplementation(async (e) => e as Email);
-
-      const result = await service.update(1, {
-        body: 'Hello {{firstName}} {{lastName}}',
-      });
-
-      expect(result.requiredVariables).toEqual([]);
-    });
-
-    it('should deduplicate variables in requiredVariables', async () => {
-      const email = {
-        id: 1,
-        subject: 'Test',
-        body: '',
-        requiredVariables: [],
-      } as Email;
-      emailRepo.findOneBy.mockResolvedValue(email);
-      emailRepo.save.mockImplementation(async (e) => e as Email);
-
-      const result = await service.update(1, {
-        body: '{{link}} and again {{link}} also {{otherVar}}',
-      });
-
-      expect(result.requiredVariables).toEqual(['link', 'otherVar']);
-    });
-
-    it('should handle multiple unique vars and filter auto-variables', async () => {
-      const email = {
-        id: 1,
-        subject: 'Test',
-        body: '',
-        requiredVariables: [],
-      } as Email;
-      emailRepo.findOneBy.mockResolvedValue(email);
-      emailRepo.save.mockImplementation(async (e) => e as Email);
-
-      const result = await service.update(1, {
-        body: '{{firstName}} {{lastName}} {{calendlyLink}} {{position}}',
-      });
-
-      expect(result.requiredVariables).toEqual(['calendlyLink', 'position']);
+      expect(result.body).toBe('New body with {{firstName}}');
     });
   });
 

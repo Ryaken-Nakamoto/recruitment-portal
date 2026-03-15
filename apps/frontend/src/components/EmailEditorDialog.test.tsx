@@ -33,7 +33,7 @@ const renderDialog = (
     <QueryClientProvider client={client}>
       <EmailEditorDialog
         email={MOCK_EMAIL}
-        autoVariables={['firstName', 'lastName']}
+        autoVariables={['firstName']}
         onClose={vi.fn()}
         {...props}
       />

@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsInt, IsOptional, Min } from 'class-validator';
+import { IsArray, IsInt, Min } from 'class-validator';
 
 export class ExecuteAssignmentDto {
   @IsArray()
@@ -12,8 +12,4 @@ export class ExecuteAssignmentDto {
   @IsInt()
   @Min(1)
   recruitersPerApp: number;
-
-  @IsOptional()
-  @IsBoolean()
-  force?: boolean;
 }

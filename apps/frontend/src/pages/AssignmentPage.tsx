@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -8,9 +9,11 @@ import {
   Dialog,
   DialogActions,
   DialogContent,
+  DialogContentText,
   DialogTitle,
   FormControl,
   FormControlLabel,
+  IconButton,
   InputLabel,
   List,
   ListItem,
@@ -21,16 +24,12 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import axios from 'axios';
 
 import apiClient from '@api/apiClient';
-import { ApplicationRound } from '@api/dtos/enums';
-import {
-  AssignmentConflictError,
-  ConflictingApp,
-  ExecuteAssignmentRequest,
-} from '@api/dtos/assignment.dto';
+import { ApplicationRound, RoundStatus } from '@api/dtos/enums';
+import { ExecuteAssignmentRequest } from '@api/dtos/assignment.dto';
 
 type SnackbarState = {
   open: boolean;
@@ -38,12 +37,7 @@ type SnackbarState = {
   severity: 'success' | 'error';
 };
 
-type ConflictDialogState = {
-  open: boolean;
-  blockType: 'submitted' | 'in_progress' | null;
-  conflictingApps: ConflictingApp[];
-  pendingRequest: ExecuteAssignmentRequest | null;
-};
+type AppSummary = { id: number; name: string };
 
 const ROUND_LABELS: Record<ApplicationRound, string> = {
   [ApplicationRound.SCREENING]: 'Screening',
@@ -51,14 +45,8 @@ const ROUND_LABELS: Record<ApplicationRound, string> = {
   [ApplicationRound.BEHAVIORAL_INTERVIEW]: 'Behavioral Interview',
 };
 
-const BLOCK_TYPE_DESCRIPTIONS: Record<'submitted' | 'in_progress', string> = {
-  submitted:
-    'One or more applications already have submitted screening reviews. Proceeding will delete those reviews.',
-  in_progress:
-    'One or more applications have an interview review in progress or already approved. Proceeding will delete those reviews.',
-};
-
 const AssignmentPage: React.FC = () => {
+  const navigate = useNavigate();
   const [round, setRound] = useState<ApplicationRound>(
     ApplicationRound.SCREENING,
   );
@@ -68,18 +56,18 @@ const AssignmentPage: React.FC = () => {
   );
   const [recruitersPerApp, setRecruitersPerApp] = useState<number>(1);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [assignedCount, setAssignedCount] = useState<number | null>(null);
   const [snackbar, setSnackbar] = useState<SnackbarState>({
     open: false,
     message: '',
     severity: 'success',
   });
-  const [conflictDialog, setConflictDialog] = useState<ConflictDialogState>({
-    open: false,
-    blockType: null,
-    conflictingApps: [],
-    pendingRequest: null,
-  });
+
+  // Dialog state
+  const [blockedApps, setBlockedApps] = useState<AppSummary[]>([]);
+  const [awaitingApps, setAwaitingApps] = useState<AppSummary[]>([]);
+  const [pendingRequest, setPendingRequest] =
+    useState<ExecuteAssignmentRequest | null>(null);
+  const [skippedApps, setSkippedApps] = useState<AppSummary[]>([]);
 
   const {
     data: applications,
@@ -103,39 +91,40 @@ const AssignmentPage: React.FC = () => {
     mutationFn: (req: ExecuteAssignmentRequest) =>
       apiClient.executeAssignment(req),
     onSuccess: (data) => {
-      setAssignedCount(data.assigned);
+      const appMap = new Map(
+        (applications ?? []).map((a) => [a.id, a.applicant.name]),
+      );
+      const skipped = data.skippedAppIds.map((id) => ({
+        id,
+        name: appMap.get(id) ?? `App #${id}`,
+      }));
+      setSkippedApps(skipped);
       setSnackbar({
         open: true,
-        message: `${data.assigned} assignments created`,
+        message: `${data.assigned} new assignment${
+          data.assigned !== 1 ? 's' : ''
+        } created`,
         severity: 'success',
       });
     },
-    onError: (error) => {
-      if (axios.isAxiosError(error) && error.response?.status === 409) {
-        const body = error.response.data as AssignmentConflictError;
-        setConflictDialog({
-          open: true,
-          blockType: body.blockType,
-          conflictingApps: body.conflictingApps,
-          pendingRequest: {
-            applicationIds: Array.from(selectedApps),
-            recruiterIds: Array.from(selectedRecruiters),
-            recruitersPerApp,
-          },
-        });
-      } else {
-        setSnackbar({
-          open: true,
-          message: 'Failed to execute assignment',
-          severity: 'error',
-        });
-      }
+    onError: () => {
+      setSnackbar({
+        open: true,
+        message: 'Failed to execute assignment',
+        severity: 'error',
+      });
     },
+  });
+
+  const buildRequest = (): ExecuteAssignmentRequest => ({
+    applicationIds: Array.from(selectedApps),
+    recruiterIds: Array.from(selectedRecruiters),
+    recruitersPerApp,
   });
 
   const handleExecute = () => {
     setValidationError(null);
-    setAssignedCount(null);
+    setSkippedApps([]);
 
     if (selectedApps.size === 0) {
       setValidationError('Select at least one application');
@@ -156,17 +145,40 @@ const AssignmentPage: React.FC = () => {
       return;
     }
 
-    executeAssignment({
-      applicationIds: Array.from(selectedApps),
-      recruiterIds: Array.from(selectedRecruiters),
-      recruitersPerApp,
-    });
+    const selectedAppObjects = (applications ?? []).filter((a) =>
+      selectedApps.has(a.id),
+    );
+
+    // Hard deny: PENDING_EMAIL or EMAIL_SENT
+    const blocked = selectedAppObjects
+      .filter(
+        (a) =>
+          a.roundStatus === RoundStatus.PENDING_EMAIL ||
+          a.roundStatus === RoundStatus.EMAIL_SENT,
+      )
+      .map((a) => ({ id: a.id, name: a.applicant.name }));
+    if (blocked.length > 0) {
+      setBlockedApps(blocked);
+      return;
+    }
+
+    // Confirmation required: AWAITING_ADMIN
+    const awaiting = selectedAppObjects
+      .filter((a) => a.roundStatus === RoundStatus.AWAITING_ADMIN)
+      .map((a) => ({ id: a.id, name: a.applicant.name }));
+    if (awaiting.length > 0) {
+      setAwaitingApps(awaiting);
+      setPendingRequest(buildRequest());
+      return;
+    }
+
+    executeAssignment(buildRequest());
   };
 
-  const handleForceExecute = () => {
-    if (!conflictDialog.pendingRequest) return;
-    setConflictDialog((s) => ({ ...s, open: false }));
-    executeAssignment({ ...conflictDialog.pendingRequest, force: true });
+  const handleConfirmAwaiting = () => {
+    if (pendingRequest) executeAssignment(pendingRequest);
+    setAwaitingApps([]);
+    setPendingRequest(null);
   };
 
   const toggleApp = (id: number) => {
@@ -217,14 +229,30 @@ const AssignmentPage: React.FC = () => {
 
   return (
     <Box sx={{ p: 4 }}>
+      <Box sx={{ mb: 2 }}>
+        <IconButton
+          onClick={() => navigate('/admin/home')}
+          sx={{ mr: 1 }}
+          aria-label="back"
+        >
+          <ArrowBackIcon />
+        </IconButton>
+        <Typography
+          variant="caption"
+          component="span"
+          sx={{ cursor: 'pointer' }}
+          onClick={() => navigate('/admin/home')}
+        >
+          Back to Home
+        </Typography>
+      </Box>
       <Typography variant="h5" fontWeight="bold" mb={1}>
         Assign Recruiters
       </Typography>
       <Alert severity="info" sx={{ mb: 3 }}>
-        Executing an assignment <strong>replaces</strong> all existing recruiter
-        assignments for the selected applications. Any previously assigned
-        recruiters will be removed and replaced with the new round-robin
-        distribution.
+        Assignments are <strong>additive</strong> — existing assignments are
+        kept. Recruiters already assigned to an application are skipped; only
+        new pairs are created.
       </Alert>
 
       <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
@@ -334,9 +362,17 @@ const AssignmentPage: React.FC = () => {
             <Alert severity="warning">{validationError}</Alert>
           )}
 
-          {assignedCount !== null && (
-            <Alert severity="success">
-              {assignedCount} assignments created
+          {skippedApps.length > 0 && (
+            <Alert severity="info" onClose={() => setSkippedApps([])}>
+              <strong>
+                {skippedApps.length} application
+                {skippedApps.length !== 1 ? 's' : ''} had duplicates skipped:
+              </strong>
+              <ul style={{ margin: '4px 0 0', paddingLeft: 16 }}>
+                {skippedApps.map((a) => (
+                  <li key={a.id}>{a.name}</li>
+                ))}
+              </ul>
             </Alert>
           )}
 
@@ -410,6 +446,68 @@ const AssignmentPage: React.FC = () => {
         </Box>
       </Box>
 
+      {/* Hard deny: PENDING_EMAIL / EMAIL_SENT */}
+      <Dialog open={blockedApps.length > 0} onClose={() => setBlockedApps([])}>
+        <DialogTitle>Cannot Assign Reviewers</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            The following applications have already had emails sent and their
+            recruitment window is closed. Remove them from your selection before
+            proceeding.
+          </DialogContentText>
+          <List dense disablePadding sx={{ mt: 1 }}>
+            {blockedApps.map((a) => (
+              <ListItem key={a.id} disableGutters>
+                <ListItemText primary={a.name} />
+              </ListItem>
+            ))}
+          </List>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setBlockedApps([])}>
+            OK
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Confirmation: AWAITING_ADMIN */}
+      <Dialog
+        open={awaitingApps.length > 0}
+        onClose={() => {
+          setAwaitingApps([]);
+          setPendingRequest(null);
+        }}
+      >
+        <DialogTitle>Status Will Reset</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            The following applications are currently awaiting an admin decision.
+            Adding a reviewer will reset their status back to{' '}
+            <strong>In Progress</strong>. No existing reviews will be deleted.
+          </DialogContentText>
+          <List dense disablePadding sx={{ mt: 1 }}>
+            {awaitingApps.map((a) => (
+              <ListItem key={a.id} disableGutters>
+                <ListItemText primary={a.name} />
+              </ListItem>
+            ))}
+          </List>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setAwaitingApps([]);
+              setPendingRequest(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={handleConfirmAwaiting}>
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}
@@ -423,48 +521,6 @@ const AssignmentPage: React.FC = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
-
-      <Dialog
-        open={conflictDialog.open}
-        onClose={() => setConflictDialog((s) => ({ ...s, open: false }))}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Review Data Will Be Lost</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" sx={{ mb: 2 }}>
-            {conflictDialog.blockType &&
-              BLOCK_TYPE_DESCRIPTIONS[conflictDialog.blockType]}
-          </Typography>
-          <Typography variant="body2" fontWeight="bold" sx={{ mb: 1 }}>
-            Affected applications:
-          </Typography>
-          <List dense disablePadding>
-            {conflictDialog.conflictingApps.map((app) => (
-              <ListItem key={app.id} disableGutters>
-                <ListItemText primary={app.applicantName} />
-              </ListItem>
-            ))}
-          </List>
-          <Typography variant="body2" sx={{ mt: 2 }}>
-            Do you want to proceed and delete the existing review data?
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => setConflictDialog((s) => ({ ...s, open: false }))}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            color="warning"
-            onClick={handleForceExecute}
-          >
-            Proceed Anyway
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };

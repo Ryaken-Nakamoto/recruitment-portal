@@ -9,6 +9,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { IsOptional, IsString } from 'class-validator';
 
 import { Auth } from '../auth/decorators/auth.decorator';
 import { ReqUser } from '../auth/decorators/user.decorator';
@@ -20,6 +21,12 @@ import {
   ApproveInterviewReviewDto,
   SaveInterviewReviewDto,
 } from './dto/save-interview-review.dto';
+
+class UpdateNotesDto {
+  @IsOptional()
+  @IsString()
+  notes: string | null;
+}
 
 @ApiTags('Recruiter - Reviews')
 @Controller('recruiter')
@@ -38,6 +45,55 @@ export class RecruitersReviewController {
       parseInt(page, 10),
       parseInt(limit, 10),
     );
+  }
+
+  @Get('applications/:applicationId')
+  @Auth(Role.RECRUITER)
+  getApplicationDetail(
+    @Param('applicationId', ParseIntPipe) applicationId: number,
+    @ReqUser() user: Recruiter,
+  ) {
+    return this.reviewService.getApplicationDetailForRecruiter(
+      applicationId,
+      user,
+    );
+  }
+
+  @Get('assignments/by-application/:applicationId/co-reviewers')
+  @Auth(Role.RECRUITER)
+  getCoReviewers(
+    @Param('applicationId', ParseIntPipe) applicationId: number,
+    @ReqUser() user: Recruiter,
+  ) {
+    return this.reviewService.getCoReviewers(applicationId, user);
+  }
+
+  @Get('assignments/by-application/:applicationId')
+  @Auth(Role.RECRUITER)
+  getAssignmentByApplication(
+    @Param('applicationId', ParseIntPipe) applicationId: number,
+    @ReqUser() user: Recruiter,
+  ) {
+    return this.reviewService.getAssignmentByApplication(applicationId, user);
+  }
+
+  @Get('assignments/:assignmentId')
+  @Auth(Role.RECRUITER)
+  getAssignmentDetail(
+    @Param('assignmentId', ParseIntPipe) assignmentId: number,
+    @ReqUser() user: Recruiter,
+  ) {
+    return this.reviewService.getAssignmentDetail(assignmentId, user);
+  }
+
+  @Patch('assignments/:assignmentId/notes')
+  @Auth(Role.RECRUITER)
+  updateNotes(
+    @Param('assignmentId', ParseIntPipe) assignmentId: number,
+    @Body() dto: UpdateNotesDto,
+    @ReqUser() user: Recruiter,
+  ) {
+    return this.reviewService.updateNotes(assignmentId, dto.notes, user);
   }
 
   @Post('reviews/screening')

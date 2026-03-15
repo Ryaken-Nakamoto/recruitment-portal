@@ -48,7 +48,7 @@ describe('ApplicationsController', () => {
 
       const result = await controller.listAll(1, 20);
 
-      expect(service.listAll).toHaveBeenCalledWith(1, 20);
+      expect(service.listAll).toHaveBeenCalledWith(1, 20, undefined, undefined);
       expect(result).toEqual(mockResponse);
     });
 
@@ -63,7 +63,7 @@ describe('ApplicationsController', () => {
 
       const result = await controller.listAll(2, 25);
 
-      expect(service.listAll).toHaveBeenCalledWith(2, 25);
+      expect(service.listAll).toHaveBeenCalledWith(2, 25, undefined, undefined);
       expect(result).toEqual(mockResponse);
     });
   });

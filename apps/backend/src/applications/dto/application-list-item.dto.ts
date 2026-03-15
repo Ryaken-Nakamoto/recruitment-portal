@@ -18,6 +18,9 @@ export class ApplicationListItemDto {
   finalDecision: FinalDecision | null;
   submittedAt: Date;
   applicant: ApplicantSummaryDto;
+  reviewsSubmitted: number;
+  reviewsTotal: number;
+  averageScore: number | null;
 }
 
 export class ApplicationsListResponseDto {

@@ -15,6 +15,7 @@ import { Readable } from 'stream';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { Role } from '../users/role';
 import { ApplicationsService } from './applications.service';
+import { RoundStatus } from './enums/round-status.enum';
 
 @ApiTags('Admin - Applications')
 @Controller('admin/applications')
@@ -26,8 +27,15 @@ export class ApplicationsController {
   listAll(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+    @Query('roundStatus') roundStatus?: RoundStatus,
+    @Query('sortAvgScore') sortAvgScore?: 'asc' | 'desc',
   ) {
-    return this.applicationsService.listAll(page, limit);
+    return this.applicationsService.listAll(
+      page,
+      limit,
+      roundStatus,
+      sortAvgScore,
+    );
   }
 
   @Get(':id')

@@ -7,7 +7,7 @@ import {
 
 import awsExports from './aws-exports';
 import LoginPage from '@pages/LoginPage';
-import TestPage from '@pages/TestPage';
+import AdminHomePage from '@pages/AdminHomePage';
 import RecruiterManagementPage from '@pages/RecruiterManagementPage';
 import RubricsPage from '@pages/RubricsPage';
 import EmailsPage from '@pages/EmailsPage';
@@ -15,6 +15,10 @@ import AssignmentPage from '@pages/AssignmentPage';
 import ApplicationsPage from '@pages/ApplicationsPage';
 import DetailedApplicationPage from '@pages/DetailedApplicationPage';
 import RecruiterHomePage from '@pages/RecruiterHomePage';
+import RecruiterDetailPage from '@pages/RecruiterDetailPage';
+import SendEmailPage from '@pages/SendEmailPage';
+import SentEmailsPage from '@pages/SentEmailsPage';
+import SentEmailDetailPage from '@pages/SentEmailDetailPage';
 import { AuthedApp } from './components/AuthedApp';
 import { Role } from '@api/dtos/enums';
 // ─── DEV ONLY ─ remove before shipping ───────────────────────────────────────
@@ -40,6 +44,14 @@ const router = createBrowserRouter([
         path: 'home',
         element: <RecruiterHomePage />,
       },
+      {
+        path: 'applications',
+        element: <RecruiterHomePage />,
+      },
+      {
+        path: 'applications/:id',
+        element: <DetailedApplicationPage />,
+      },
     ],
   },
   {
@@ -52,11 +64,15 @@ const router = createBrowserRouter([
       },
       {
         path: 'home',
-        element: <TestPage />,
+        element: <AdminHomePage />,
       },
       {
         path: 'recruiters',
         element: <RecruiterManagementPage />,
+      },
+      {
+        path: 'recruiters/:id',
+        element: <RecruiterDetailPage />,
       },
       {
         path: 'rubrics',
@@ -75,8 +91,20 @@ const router = createBrowserRouter([
         element: <ApplicationsPage />,
       },
       {
+        path: 'applications/:id/email',
+        element: <SendEmailPage />,
+      },
+      {
         path: 'applications/:id',
         element: <DetailedApplicationPage />,
+      },
+      {
+        path: 'sent-emails',
+        element: <SentEmailsPage />,
+      },
+      {
+        path: 'sent-emails/:id',
+        element: <SentEmailDetailPage />,
       },
     ],
   },

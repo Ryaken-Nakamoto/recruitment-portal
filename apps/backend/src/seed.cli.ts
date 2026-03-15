@@ -8,6 +8,8 @@ import { ScreeningRubric } from './rubrics/entities/screening-rubric.entity';
 import { InterviewRubric } from './rubrics/entities/interview-rubric.entity';
 import { Applicant } from './applicants/entities/applicant.entity';
 import { Application } from './applications/entities/application.entity';
+import { Assignment } from './applications/entities/assignment.entity';
+import { ScreeningReview } from './applications/entities/screening-review.entity';
 import { Email } from './emails/entities/email.entity';
 import { RawGoogleForm } from './raw-google-forms/entities/raw-google-form.entity';
 import { RawGoogleFormsService } from './raw-google-forms/raw-google-forms.service';
@@ -28,6 +30,8 @@ async function runSeed() {
     const interviewRubricRepo = AppDataSource.getRepository(InterviewRubric);
     const applicantRepo = AppDataSource.getRepository(Applicant);
     const applicationRepo = AppDataSource.getRepository(Application);
+    const assignmentRepo = AppDataSource.getRepository(Assignment);
+    const screeningReviewRepo = AppDataSource.getRepository(ScreeningReview);
     const emailRepo = AppDataSource.getRepository(Email);
     const rawGoogleFormRepo = AppDataSource.getRepository(RawGoogleForm);
 
@@ -35,6 +39,8 @@ async function runSeed() {
     const applicantsService = new ApplicantsService(applicantRepo);
     const applicationsService = new ApplicationsService(
       applicationRepo,
+      assignmentRepo,
+      screeningReviewRepo,
       null as unknown as never, // S3Service not needed for seeding
     );
     const rawGoogleFormsService = new RawGoogleFormsService(

@@ -25,7 +25,14 @@ const makeUser = () => ({
 });
 
 describe('useAuth', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv('VITE_DEV_AUTH_BYPASS', 'false');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
 
   it('returns loading=true on initial render', () => {
     mockFetchAuthSession.mockReturnValue(new Promise(() => {})); // never resolves

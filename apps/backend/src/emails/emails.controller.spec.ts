@@ -42,18 +42,18 @@ describe('EmailsController', () => {
 
   describe('GET /emails/variables', () => {
     it('should call service.getAutoVariables()', () => {
-      service.getAutoVariables.mockReturnValue(['firstName', 'lastName']);
+      service.getAutoVariables.mockReturnValue(['firstName']);
 
       const result = controller.getAutoVariables();
 
       expect(service.getAutoVariables).toHaveBeenCalled();
-      expect(result).toEqual(['firstName', 'lastName']);
+      expect(result).toEqual(['firstName']);
     });
   });
 
   describe('PATCH /emails/:id', () => {
     it('should call service.update() with id and dto', async () => {
-      const dto = { body: 'Updated body {{calendlyLink}}' };
+      const dto = { body: 'Hi {{firstName}}, welcome to our program!' };
       const updated = { id: 1, body: dto.body } as Email;
       service.update.mockResolvedValue(updated);
 

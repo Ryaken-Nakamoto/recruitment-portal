@@ -37,24 +37,52 @@ const MOCK_RECRUITERS: Array<{
   lastName: string;
   email: string;
 }> = [
-  { firstName: 'Alice', lastName: 'Park', email: 'alice.park@dev.local' },
-  { firstName: 'Ben', lastName: 'Torres', email: 'ben.torres@dev.local' },
-  { firstName: 'Claire', lastName: 'Novak', email: 'claire.novak@dev.local' },
-  { firstName: 'David', lastName: 'Singh', email: 'david.singh@dev.local' },
-  { firstName: 'Emma', lastName: 'Osei', email: 'emma.osei@dev.local' },
+  {
+    firstName: 'Alice',
+    lastName: 'Park',
+    email: 'ryaken.nakamoto.s@gmail.com',
+  },
+  {
+    firstName: 'Ben',
+    lastName: 'Torres',
+    email: 'ryaken.nakamoto.s@gmail.com',
+  },
+  {
+    firstName: 'Claire',
+    lastName: 'Novak',
+    email: 'ryaken.nakamoto.s@gmail.com',
+  },
+  {
+    firstName: 'David',
+    lastName: 'Singh',
+    email: 'ryaken.nakamoto.s@gmail.com',
+  },
+  { firstName: 'Emma', lastName: 'Osei', email: 'ryaken.nakamoto.s@gmail.com' },
   {
     firstName: 'Felix',
     lastName: 'Yamamoto',
-    email: 'felix.yamamoto@dev.local',
+    email: 'ryaken.nakamoto.s@gmail.com',
   },
-  { firstName: 'Grace', lastName: 'Murphy', email: 'grace.murphy@dev.local' },
+  {
+    firstName: 'Grace',
+    lastName: 'Murphy',
+    email: 'ryaken.nakamoto.s@gmail.com',
+  },
   {
     firstName: 'Henry',
     lastName: 'Kowalski',
-    email: 'henry.kowalski@dev.local',
+    email: 'ryaken.nakamoto.s@gmail.com',
   },
-  { firstName: 'Isla', lastName: 'Santos', email: 'isla.santos@dev.local' },
-  { firstName: 'James', lastName: 'Okonkwo', email: 'james.okonkwo@dev.local' },
+  {
+    firstName: 'Isla',
+    lastName: 'Santos',
+    email: 'ryaken.nakamoto.s@gmail.com',
+  },
+  {
+    firstName: 'James',
+    lastName: 'Okonkwo',
+    email: 'ryaken.nakamoto.s@gmail.com',
+  },
 ];
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -63,7 +91,7 @@ const MOCK_RESUME_URL =
 
 const MOCK_GOOGLE_FORMS: SubmitGoogleFormDto[] = [
   {
-    email: 'alex.chen@example.com',
+    email: 'ryaken.nakamoto.s@gmail.com',
     fullName: 'Alex Chen',
     year: FormYear.THIRD,
     college: College.KHOURY,
@@ -87,7 +115,7 @@ const MOCK_GOOGLE_FORMS: SubmitGoogleFormDto[] = [
     fallCommitments: 'I can commit 8-10 hours per week. No major conflicts.',
   },
   {
-    email: 'jordan.patel@example.com',
+    email: 'ryaken.nakamoto.s@gmail.com',
     fullName: 'Jordan Patel',
     year: FormYear.SECOND,
     college: College.KHOURY,
@@ -107,7 +135,7 @@ const MOCK_GOOGLE_FORMS: SubmitGoogleFormDto[] = [
       'Taking 4 courses but flexible on weekends. About 6-8 hours per week.',
   },
   {
-    email: 'morgan.liu@example.com',
+    email: 'ryaken.nakamoto.s@gmail.com',
     fullName: 'Morgan Liu',
     year: FormYear.FOURTH,
     college: College.ENGINEERING,
@@ -131,7 +159,7 @@ const MOCK_GOOGLE_FORMS: SubmitGoogleFormDto[] = [
       'Light course load senior year. Can do 10+ hours per week.',
   },
   {
-    email: 'riley.thompson@example.com',
+    email: 'ryaken.nakamoto.s@gmail.com',
     fullName: 'Riley Thompson',
     year: FormYear.THIRD,
     college: College.KHOURY,
@@ -157,7 +185,7 @@ const MOCK_GOOGLE_FORMS: SubmitGoogleFormDto[] = [
     fallCommitments: 'Available 8 hours per week, no co-op this semester.',
   },
   {
-    email: 'casey.nguyen@example.com',
+    email: 'ryaken.nakamoto.s@gmail.com',
     fullName: 'Casey Nguyen',
     year: FormYear.FIRST,
     college: College.KHOURY,
@@ -176,7 +204,7 @@ const MOCK_GOOGLE_FORMS: SubmitGoogleFormDto[] = [
       'First-year schedule is flexible. I can commit 6-8 hours per week.',
   },
   {
-    email: 'sam.rodriguez@example.com',
+    email: 'ryaken.nakamoto.s@gmail.com',
     fullName: 'Sam Rodriguez',
     year: FormYear.THIRD,
     college: College.CSSH,
@@ -202,7 +230,7 @@ const MOCK_GOOGLE_FORMS: SubmitGoogleFormDto[] = [
       'Part-time job 10 hrs/week but can still commit 6 hours to C4C.',
   },
   {
-    email: 'taylor.kim@example.com',
+    email: 'ryaken.nakamoto.s@gmail.com',
     fullName: 'Taylor Kim',
     year: FormYear.SECOND,
     college: College.KHOURY,
@@ -220,7 +248,7 @@ const MOCK_GOOGLE_FORMS: SubmitGoogleFormDto[] = [
     fallCommitments: 'No major commitments. 8-10 hours per week available.',
   },
   {
-    email: 'drew.okafor@example.com',
+    email: 'ryaken.nakamoto.s@gmail.com',
     fullName: 'Drew Okafor',
     year: FormYear.FOURTH,
     college: College.KHOURY,
@@ -245,7 +273,7 @@ const MOCK_GOOGLE_FORMS: SubmitGoogleFormDto[] = [
     fallCommitments: 'Senior year, light load. 10+ hours per week easily.',
   },
   {
-    email: 'jamie.walsh@example.com',
+    email: 'ryaken.nakamoto.s@gmail.com',
     fullName: 'Jamie Walsh',
     year: FormYear.THIRD,
     college: College.KHOURY,
@@ -271,7 +299,7 @@ const MOCK_GOOGLE_FORMS: SubmitGoogleFormDto[] = [
       'Available 8 hours per week. No co-op or major extracurriculars.',
   },
   {
-    email: 'quinn.hernandez@example.com',
+    email: 'ryaken.nakamoto.s@gmail.com',
     fullName: 'Quinn Hernandez',
     year: FormYear.SECOND,
     college: College.ENGINEERING,

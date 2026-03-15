@@ -3,18 +3,32 @@ import { fetchAuthSession } from 'aws-amplify/auth';
 import { User } from './dtos/user.dto';
 import { RubricsResponse } from './dtos/rubric.dto';
 import { EmailDto, UpdateEmailDto } from './dtos/email.dto';
-import { ApplicationRound } from './dtos/enums';
+import { ApplicationRound, RoundStatus } from './dtos/enums';
 import {
   ApplicationSummaryDto,
   ApplicationsListResponse,
+  BulkDecideRequest,
+  BulkDecideResponse,
 } from './dtos/application.dto';
 import { ApplicationDetailResponse } from './dtos/application-detail.dto';
 import {
+  AddReviewerRequest,
+  AddReviewerResponse,
+  AdminApplicationReview,
+  AssignmentDetailResponse,
+  AssignmentReviewerInfo,
   ExecuteAssignmentRequest,
   ExecuteAssignmentResponse,
   RecruiterAssignmentsResponse,
+  RecruiterDetailResponse,
   RecruiterSummaryDto,
+  RemoveReviewerResponse,
 } from './dtos/assignment.dto';
+import {
+  EmailPreviewDto,
+  SentEmailDetailDto,
+  SentEmailsListResponse,
+} from './dtos/sent-email.dto';
 
 export interface RecruiterListResponse {
   data: User[];
@@ -89,10 +103,21 @@ export class ApiClient {
   public async getApplications(
     page: number = 1,
     limit: number = 20,
+    roundStatus?: RoundStatus,
+    avgScoreSort?: 'asc' | 'desc',
   ): Promise<ApplicationsListResponse> {
+    const qs = roundStatus ? `&roundStatus=${roundStatus}` : '';
+    const sortQs = avgScoreSort ? `&sortAvgScore=${avgScoreSort}` : '';
     return this.get(
-      `/api/admin/applications?page=${page}&limit=${limit}`,
+      `/api/admin/applications?page=${page}&limit=${limit}${qs}${sortQs}`,
     ) as Promise<ApplicationsListResponse>;
+  }
+
+  public async bulkDecide(dto: BulkDecideRequest): Promise<BulkDecideResponse> {
+    return this.patch(
+      '/api/admin/applications/bulk-decide',
+      dto,
+    ) as Promise<BulkDecideResponse>;
   }
 
   public async inviteRecruiter(dto: InviteRecruiterRequest): Promise<User> {
@@ -148,6 +173,98 @@ export class ApiClient {
     ) as Promise<RecruiterAssignmentsResponse>;
   }
 
+  public async getAssignmentDetail(
+    assignmentId: number,
+  ): Promise<AssignmentDetailResponse> {
+    return this.get(
+      `/api/recruiter/assignments/${assignmentId}`,
+    ) as Promise<AssignmentDetailResponse>;
+  }
+
+  public async getAssignmentByApplication(
+    applicationId: number,
+  ): Promise<AssignmentDetailResponse> {
+    return this.get(
+      `/api/recruiter/assignments/by-application/${applicationId}`,
+    ) as Promise<AssignmentDetailResponse>;
+  }
+
+  public async updateAssignmentNotes(
+    assignmentId: number,
+    notes: string | null,
+  ): Promise<{ assignmentId: number; notes: string | null }> {
+    return this.patch(`/api/recruiter/assignments/${assignmentId}/notes`, {
+      notes,
+    }) as Promise<{ assignmentId: number; notes: string | null }>;
+  }
+
+  public async submitScreeningReview(dto: {
+    assignmentId: number;
+    scores: { criteriaId: number; score: number }[];
+  }): Promise<{ id: number }> {
+    return this.post('/api/recruiter/reviews/screening', dto) as Promise<{
+      id: number;
+    }>;
+  }
+
+  public async addReviewer(
+    dto: AddReviewerRequest,
+  ): Promise<AddReviewerResponse> {
+    return this.post(
+      '/api/admin/assignments/add',
+      dto,
+    ) as Promise<AddReviewerResponse>;
+  }
+
+  public async removeReviewer(
+    assignmentId: number,
+    force = false,
+  ): Promise<RemoveReviewerResponse> {
+    return this.delete(
+      `/api/admin/assignments/${assignmentId}${force ? '?force=true' : ''}`,
+    ) as Promise<RemoveReviewerResponse>;
+  }
+
+  public async getApplicationDetailRecruiter(
+    id: number,
+  ): Promise<ApplicationDetailResponse> {
+    return this.get(
+      `/api/recruiter/applications/${id}`,
+    ) as Promise<ApplicationDetailResponse>;
+  }
+
+  public async getApplicationAssignments(
+    applicationId: number,
+  ): Promise<AssignmentReviewerInfo[]> {
+    return this.get(
+      `/api/admin/assignments/application/${applicationId}`,
+    ) as Promise<AssignmentReviewerInfo[]>;
+  }
+
+  public async getApplicationReviews(
+    applicationId: number,
+  ): Promise<AdminApplicationReview[]> {
+    return this.get(
+      `/api/admin/assignments/application/${applicationId}/reviews`,
+    ) as Promise<AdminApplicationReview[]>;
+  }
+
+  public async getCoReviewers(
+    applicationId: number,
+  ): Promise<AssignmentReviewerInfo[]> {
+    return this.get(
+      `/api/recruiter/assignments/by-application/${applicationId}/co-reviewers`,
+    ) as Promise<AssignmentReviewerInfo[]>;
+  }
+
+  public async getRecruiterDetail(
+    id: number,
+  ): Promise<RecruiterDetailResponse> {
+    return this.get(
+      `/api/admin/recruiters/${id}`,
+    ) as Promise<RecruiterDetailResponse>;
+  }
+
   public async deactivateRecruiter(id: number): Promise<User> {
     return this.patch(
       `/api/admin/recruiters/${id}/deactivate`,
@@ -160,6 +277,39 @@ export class ApiClient {
       `/api/admin/recruiters/${id}/reactivate`,
       {},
     ) as Promise<User>;
+  }
+
+  public async getEmailPreview(
+    applicationId: number,
+  ): Promise<EmailPreviewDto> {
+    return this.get(
+      `/api/admin/applications/${applicationId}/email-preview`,
+    ) as Promise<EmailPreviewDto>;
+  }
+
+  public async sendApplicationEmail(
+    applicationId: number,
+    dto: { subject: string; body: string },
+  ): Promise<void> {
+    await this.patch(
+      `/api/admin/applications/${applicationId}/send-email`,
+      dto,
+    );
+  }
+
+  public async getSentEmails(
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<SentEmailsListResponse> {
+    return this.get(
+      `/api/admin/sent-emails?page=${page}&limit=${limit}`,
+    ) as Promise<SentEmailsListResponse>;
+  }
+
+  public async getSentEmail(id: number): Promise<SentEmailDetailDto> {
+    return this.get(
+      `/api/admin/sent-emails/${id}`,
+    ) as Promise<SentEmailDetailDto>;
   }
 
   public async downloadResume(applicationId: number): Promise<void> {
