@@ -501,14 +501,13 @@ export class SeedService implements OnApplicationBootstrap {
           firstName,
           lastName,
           email,
-          role: Role.RECRUITER,
           accountStatus: AccountStatus.ACTIVATED,
         }),
       );
     }
 
     this.logger.log(
-      `Mock recruiters seeded (${MOCK_RECRUITERS.length} users @ *.dev.local)`,
+      `Mock recruiters seeded (${MOCK_RECRUITERS.length} users @ c4c.test)`,
     );
   }
   // ─────────────────────────────────────────────────────────────────────────────
