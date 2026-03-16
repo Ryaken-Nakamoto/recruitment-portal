@@ -16,6 +16,7 @@
     "migration:revert": "npm run typeorm -- migration:revert -d apps/backend/src/data-source.ts",
     "migration:create": "npm run typeorm -- migration:create apps/backend/src/migrations/$npm_config_name",
     "seed": "ts-node -r tsconfig-paths/register --project apps/backend/tsconfig.app.json apps/backend/src/seed.cli.ts",
+    "clear-all-data": "ts-node -r tsconfig-paths/register --project apps/backend/tsconfig.app.json apps/backend/src/clear.cli.ts",
     "test": "jest",
     "build:backend": "npx nx run backend:build --configuration production",
     "build:frontend": "npx nx run frontend:build --configuration production",

@@ -89,239 +89,202 @@ const MOCK_RECRUITERS: Array<{
 const MOCK_RESUME_URL =
   'https://recruitment-portal-resumes-12324123t51234.s3.us-east-1.amazonaws.com/resumes/04f73eb0-c49d-4cb6-818c-7eb39538bfb4-Ryaken_Nakamoto_AI_Resume - Ryaken Nakamoto.pdf';
 
-const MOCK_GOOGLE_FORMS: SubmitGoogleFormDto[] = [
-  {
-    email: 'ryaken.nakamoto.s@gmail.com',
-    fullName: 'Alex Chen',
-    year: FormYear.THIRD,
-    college: College.KHOURY,
-    major: 'Computer Science',
-    codingExperience: [
-      CodingExperience.FUNDIES_1,
-      CodingExperience.FUNDIES_2,
-      CodingExperience.OOD,
-    ],
-    resumeUrl: MOCK_RESUME_URL,
-    whyC4C:
-      "I want to use my technical skills to create meaningful impact in underserved communities. C4C's mission of building software for nonprofits aligns perfectly with my belief that technology should be a tool for equity.",
-    selfStartedProject:
-      'Built a meal-planning app for a local food bank using React and Express.',
-    communityImpact:
-      'Volunteered at a coding bootcamp for underrepresented high school students for two semesters.',
-    teamConflict:
-      'During a group project, two teammates disagreed on the database schema. I facilitated a meeting where we listed pros and cons of each approach and reached a consensus.',
-    heardAboutC4C: [HearAboutC4C.INSTAGRAM, HearAboutC4C.WORD_OF_MOUTH],
-    appliedBefore: 'No',
-    fallCommitments: 'I can commit 8-10 hours per week. No major conflicts.',
-  },
-  {
-    email: 'ryaken.nakamoto.s@gmail.com',
-    fullName: 'Jordan Patel',
-    year: FormYear.SECOND,
-    college: College.KHOURY,
-    major: 'Software Engineering',
-    codingExperience: [CodingExperience.FUNDIES_1, CodingExperience.FUNDIES_2],
-    resumeUrl: MOCK_RESUME_URL,
-    whyC4C:
-      'I believe technology should serve everyone, not just those who can afford it. C4C gives me the chance to build real products that help real people.',
-    selfStartedProject: null,
-    communityImpact:
-      'Organized a hackathon focused on civic tech solutions for local nonprofits.',
-    teamConflict:
-      'When a teammate missed a deadline, I reached out privately to understand their situation and helped redistribute tasks so we could still deliver on time.',
-    heardAboutC4C: [HearAboutC4C.EVENT],
-    appliedBefore: 'No',
-    fallCommitments:
-      'Taking 4 courses but flexible on weekends. About 6-8 hours per week.',
-  },
-  {
-    email: 'ryaken.nakamoto.s@gmail.com',
-    fullName: 'Morgan Liu',
-    year: FormYear.FOURTH,
-    college: College.ENGINEERING,
-    major: 'Data Science',
-    codingExperience: [
-      CodingExperience.FUNDIES_1,
-      CodingExperience.FUNDIES_2,
-      CodingExperience.OOD,
-      CodingExperience.DATABASES,
-    ],
-    resumeUrl: MOCK_RESUME_URL,
-    whyC4C:
-      'As a senior, I want to leave a lasting impact at Northeastern. C4C lets me apply everything I have learned to projects that matter beyond the classroom.',
-    selfStartedProject:
-      'Created a dashboard for a nonprofit to visualize donation trends using Python and D3.js.',
-    communityImpact: null,
-    teamConflict: null,
-    heardAboutC4C: [HearAboutC4C.KHOURY_WEBSITE],
-    appliedBefore: 'Yes',
-    fallCommitments:
-      'Light course load senior year. Can do 10+ hours per week.',
-  },
-  {
-    email: 'ryaken.nakamoto.s@gmail.com',
-    fullName: 'Riley Thompson',
-    year: FormYear.THIRD,
-    college: College.KHOURY,
-    major: 'Computer Science',
-    codingExperience: [
-      CodingExperience.FUNDIES_1,
-      CodingExperience.FUNDIES_2,
-      CodingExperience.OOD,
-      CodingExperience.SOFTWARE_DEVELOPMENT,
-    ],
-    resumeUrl: MOCK_RESUME_URL,
-    whyC4C:
-      'I have always been passionate about using code for social good. C4C is the perfect place to combine my love for software development with community impact.',
-    selfStartedProject:
-      'Built a volunteer coordination platform for a local shelter using Next.js.',
-    communityImpact:
-      'Tutored CS students from underrepresented backgrounds through the Khoury mentorship program.',
-    teamConflict:
-      'In a hackathon, our team had conflicting ideas for the project direction. I suggested we each prototype our ideas for 30 minutes and then vote on the strongest approach.',
-    heardAboutC4C: [HearAboutC4C.MEMBER_REFERRAL],
-    heardAboutC4COther: 'Sarah Kim',
-    appliedBefore: 'No',
-    fallCommitments: 'Available 8 hours per week, no co-op this semester.',
-  },
-  {
-    email: 'ryaken.nakamoto.s@gmail.com',
-    fullName: 'Casey Nguyen',
-    year: FormYear.FIRST,
-    college: College.KHOURY,
-    major: 'Computer Science',
-    codingExperience: [CodingExperience.FUNDIES_1],
-    resumeUrl: MOCK_RESUME_URL,
-    whyC4C:
-      'Even though I am just starting out, I want to contribute to meaningful projects and learn from experienced developers. C4C seems like the best way to grow while giving back.',
-    selfStartedProject: null,
-    communityImpact:
-      'Led a fundraising campaign for a local literacy nonprofit in high school, raising over $3,000.',
-    teamConflict: null,
-    heardAboutC4C: [HearAboutC4C.EVENT, HearAboutC4C.INSTAGRAM],
-    appliedBefore: 'No',
-    fallCommitments:
-      'First-year schedule is flexible. I can commit 6-8 hours per week.',
-  },
-  {
-    email: 'ryaken.nakamoto.s@gmail.com',
-    fullName: 'Sam Rodriguez',
-    year: FormYear.THIRD,
-    college: College.CSSH,
-    major: 'Information Systems',
-    codingExperience: [
-      CodingExperience.WEB_DEVELOPMENT,
-      CodingExperience.DATABASES,
-    ],
-    codingExperienceOther:
-      'Self-taught React and Node.js through online courses',
-    resumeUrl: MOCK_RESUME_URL,
-    whyC4C:
-      'Coming from a non-traditional CS background, I want to prove that impactful software can be built by anyone with the drive to learn. C4C values collaboration over pedigree.',
-    selfStartedProject:
-      'Built a budgeting tool for first-generation college students using the MERN stack.',
-    communityImpact:
-      'Mentored first-generation students through the transition to college life.',
-    teamConflict:
-      'A teammate and I had different coding styles. We agreed on a linting config and established code review norms so we could focus on substance over style.',
-    heardAboutC4C: [HearAboutC4C.WORD_OF_MOUTH],
-    appliedBefore: 'No',
-    fallCommitments:
-      'Part-time job 10 hrs/week but can still commit 6 hours to C4C.',
-  },
-  {
-    email: 'ryaken.nakamoto.s@gmail.com',
-    fullName: 'Taylor Kim',
-    year: FormYear.SECOND,
-    college: College.KHOURY,
-    major: 'Computer Science',
-    codingExperience: [CodingExperience.FUNDIES_1, CodingExperience.FUNDIES_2],
-    resumeUrl: MOCK_RESUME_URL,
-    whyC4C:
-      'I want hands-on experience building production software while making a difference. C4C offers both in a supportive environment.',
-    selfStartedProject: null,
-    communityImpact: null,
-    teamConflict:
-      'When two group members stopped contributing, I scheduled a check-in to understand blockers and helped break tasks into smaller pieces so everyone could participate.',
-    heardAboutC4C: [HearAboutC4C.INSTAGRAM],
-    appliedBefore: 'No',
-    fallCommitments: 'No major commitments. 8-10 hours per week available.',
-  },
-  {
-    email: 'ryaken.nakamoto.s@gmail.com',
-    fullName: 'Drew Okafor',
-    year: FormYear.FOURTH,
-    college: College.KHOURY,
-    major: 'Cognitive Science',
-    codingExperience: [
-      CodingExperience.FUNDIES_1,
-      CodingExperience.FUNDIES_2,
-      CodingExperience.OOD,
-      CodingExperience.SOFTWARE_ENGINEERING,
-    ],
-    resumeUrl: MOCK_RESUME_URL,
-    whyC4C:
-      'My background in cognitive science gives me a unique perspective on user-centered design. I want to bring that lens to C4C projects to make software that is truly accessible.',
-    selfStartedProject:
-      'Designed and built a cognitive accessibility testing tool for web applications.',
-    communityImpact:
-      "Ran UX workshops for nonprofit staff to help them better understand their users' digital needs.",
-    teamConflict:
-      'During a co-op project, stakeholders had conflicting requirements. I organized a prioritization session using MoSCoW method to align everyone.',
-    heardAboutC4C: [HearAboutC4C.KHOURY_WEBSITE, HearAboutC4C.WORD_OF_MOUTH],
-    appliedBefore: 'Yes',
-    fallCommitments: 'Senior year, light load. 10+ hours per week easily.',
-  },
-  {
-    email: 'ryaken.nakamoto.s@gmail.com',
-    fullName: 'Jamie Walsh',
-    year: FormYear.THIRD,
-    college: College.KHOURY,
-    major: 'Mathematics & CS',
-    codingExperience: [
-      CodingExperience.FUNDIES_1,
-      CodingExperience.FUNDIES_2,
-      CodingExperience.OOD,
-      CodingExperience.INTERMEDIATE_DATA,
-    ],
-    resumeUrl: MOCK_RESUME_URL,
-    whyC4C:
-      'I love the intersection of math and software. C4C projects let me apply analytical thinking to real-world problems that affect my community.',
-    selfStartedProject:
-      'Built an algorithm to optimize volunteer shift scheduling for a local hospital.',
-    communityImpact:
-      'Tutored students in discrete math and helped them see connections to real software problems.',
-    teamConflict: null,
-    heardAboutC4C: [HearAboutC4C.MEMBER_REFERRAL],
-    heardAboutC4COther: 'Alex Chen',
-    appliedBefore: 'No',
-    fallCommitments:
-      'Available 8 hours per week. No co-op or major extracurriculars.',
-  },
-  {
-    email: 'ryaken.nakamoto.s@gmail.com',
-    fullName: 'Quinn Hernandez',
-    year: FormYear.SECOND,
-    college: College.ENGINEERING,
-    major: 'Computer Engineering',
-    codingExperience: [CodingExperience.FUNDIES_1, CodingExperience.FUNDIES_2],
-    codingExperienceOther: 'Embedded systems programming in C',
-    resumeUrl: MOCK_RESUME_URL,
-    whyC4C:
-      'I want to branch out from hardware into full-stack development, and doing it for a good cause makes it even more meaningful.',
-    selfStartedProject: null,
-    communityImpact:
-      'Built a low-cost IoT air quality monitor and deployed it in three community centers.',
-    teamConflict:
-      'A teammate pushed code that broke the build right before a demo. Instead of blaming, I helped them fix it and we added a CI check to prevent it in the future.',
-    heardAboutC4C: [HearAboutC4C.EVENT],
-    appliedBefore: 'No',
-    fallCommitments:
-      'Engineering course load is heavy but I can do 6 hours per week.',
-    questionsOrConcerns:
-      'Is there flexibility in which project team I join? I am interested in the data-focused projects.',
-  },
+const FIRST_NAMES = [
+  'Alex',
+  'Jordan',
+  'Morgan',
+  'Riley',
+  'Casey',
+  'Sam',
+  'Taylor',
+  'Drew',
+  'Jamie',
+  'Quinn',
+  'Casey',
+  'Morgan',
+  'Riley',
+  'Taylor',
+  'Jordan',
+  'Alex',
+  'Sam',
+  'Jamie',
+  'Drew',
+  'Quinn',
+  'Morgan',
+  'Taylor',
+  'Alex',
+  'Casey',
+  'Jordan',
+  'Riley',
+  'Sam',
+  'Drew',
+  'Quinn',
+  'Jamie',
+  'Alex',
+  'Jordan',
+  'Morgan',
+  'Riley',
+  'Casey',
+  'Sam',
+  'Taylor',
+  'Drew',
+  'Jamie',
+  'Quinn',
+  'Casey',
+  'Morgan',
+  'Riley',
+  'Taylor',
+  'Jordan',
+  'Alex',
+  'Sam',
+  'Jamie',
+  'Drew',
+  'Quinn',
 ];
+
+const LAST_NAMES = [
+  'Chen',
+  'Patel',
+  'Liu',
+  'Thompson',
+  'Nguyen',
+  'Rodriguez',
+  'Kim',
+  'Okafor',
+  'Walsh',
+  'Hernandez',
+  'Anderson',
+  'Martinez',
+  'Taylor',
+  'Brown',
+  'Jones',
+  'Garcia',
+  'Miller',
+  'Davis',
+  'Wilson',
+  'Moore',
+  'Jackson',
+  'White',
+  'Harris',
+  'Martin',
+  'Lee',
+  'Perez',
+  'Thompson',
+  'Clark',
+  'Lewis',
+  'Walker',
+  'Hall',
+  'Young',
+  'Gonzalez',
+  'Hernandez',
+  'Lopez',
+  'Gonzales',
+  'Carter',
+  'Mitchell',
+  'Roberts',
+  'Phillips',
+  'Evans',
+  'Turner',
+  'Diaz',
+  'Parker',
+  'Edwards',
+  'Collins',
+  'Reyes',
+  'Stewart',
+  'Morris',
+  'Murphy',
+];
+
+const COLLEGES = [College.KHOURY, College.ENGINEERING, College.CSSH];
+
+const MAJORS = [
+  'Computer Science',
+  'Software Engineering',
+  'Data Science',
+  'Information Systems',
+  'Computer Engineering',
+  'Cognitive Science',
+  'Mathematics & CS',
+];
+
+const CODING_EXPERIENCE_OPTIONS = [
+  [CodingExperience.FUNDIES_1],
+  [CodingExperience.FUNDIES_1, CodingExperience.FUNDIES_2],
+  [
+    CodingExperience.FUNDIES_1,
+    CodingExperience.FUNDIES_2,
+    CodingExperience.OOD,
+  ],
+  [
+    CodingExperience.FUNDIES_1,
+    CodingExperience.FUNDIES_2,
+    CodingExperience.OOD,
+    CodingExperience.DATABASES,
+  ],
+  [CodingExperience.WEB_DEVELOPMENT, CodingExperience.DATABASES],
+  [
+    CodingExperience.FUNDIES_1,
+    CodingExperience.FUNDIES_2,
+    CodingExperience.OOD,
+    CodingExperience.SOFTWARE_ENGINEERING,
+  ],
+];
+
+const YEARS = [
+  FormYear.FIRST,
+  FormYear.SECOND,
+  FormYear.THIRD,
+  FormYear.FOURTH,
+];
+
+function generateMockApplications(): SubmitGoogleFormDto[] {
+  const applications: SubmitGoogleFormDto[] = [];
+
+  for (let i = 0; i < 50; i++) {
+    const firstName = FIRST_NAMES[i % FIRST_NAMES.length];
+    const lastName = LAST_NAMES[i % LAST_NAMES.length];
+    const email = `applicant.${i + 1}@c4c.test`;
+    const college = COLLEGES[i % COLLEGES.length];
+    const major = MAJORS[i % MAJORS.length];
+    const codingExperience =
+      CODING_EXPERIENCE_OPTIONS[i % CODING_EXPERIENCE_OPTIONS.length];
+    const year = YEARS[i % YEARS.length];
+
+    applications.push({
+      email,
+      fullName: `${firstName} ${lastName}`,
+      year,
+      college,
+      major,
+      codingExperience,
+      resumeUrl: MOCK_RESUME_URL,
+      whyC4C: `I am passionate about using technology for social good. I believe C4C's mission aligns with my values and I want to contribute meaningful work. (Applicant ${
+        i + 1
+      })`,
+      selfStartedProject:
+        i % 3 === 0 ? `Built a project for applicant ${i + 1}` : null,
+      communityImpact:
+        i % 2 === 0
+          ? `Contributed to community in my own way. (Applicant ${i + 1})`
+          : null,
+      teamConflict:
+        i % 2 === 1
+          ? `Resolved team conflicts through communication. (Applicant ${
+              i + 1
+            })`
+          : null,
+      heardAboutC4C: [HearAboutC4C.WORD_OF_MOUTH],
+      appliedBefore: i % 5 === 0 ? 'Yes' : 'No',
+      fallCommitments: `Can commit ${6 + (i % 6)} hours per week. (Applicant ${
+        i + 1
+      })`,
+    });
+  }
+
+  return applications;
+}
+
+const MOCK_GOOGLE_FORMS = generateMockApplications();
 
 @Injectable()
 export class SeedService implements OnApplicationBootstrap {

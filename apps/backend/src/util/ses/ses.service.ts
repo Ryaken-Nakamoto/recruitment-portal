@@ -21,11 +21,20 @@ export class SesService {
       return;
     }
 
+    // Redirect to mock email destination if MOCK_EMAIL is enabled
+    let recipientEmail = params.to;
+    if (process.env.MOCK_EMAIL === 'true' && process.env.MOCK_EMAIL_DEST) {
+      this.logger.log(
+        `[MOCK MODE] Redirecting email from ${params.to} to ${process.env.MOCK_EMAIL_DEST}`,
+      );
+      recipientEmail = process.env.MOCK_EMAIL_DEST;
+    }
+
     try {
       await this.client.send(
         new SendEmailCommand({
           FromEmailAddress: params.from,
-          Destination: { ToAddresses: [params.to] },
+          Destination: { ToAddresses: [recipientEmail] },
           Content: {
             Simple: {
               Subject: { Data: params.subject },
@@ -35,11 +44,13 @@ export class SesService {
         }),
       );
       this.logger.log(
-        `Email sent to ${params.to} — subject: "${params.subject}"`,
+        `Email sent to ${recipientEmail} — subject: "${params.subject}"`,
       );
     } catch (error) {
       this.logger.error(
-        `Failed to send email to ${params.to}: ${(error as Error).message}`,
+        `Failed to send email to ${recipientEmail}: ${
+          (error as Error).message
+        }`,
       );
       throw error;
     }
