@@ -20,17 +20,22 @@ async function clearAllData() {
     const queryRunner = AppDataSource.createQueryRunner();
     await queryRunner.connect();
 
-    // Get list of all tables
+    // Get list of all tables (exclude system schemas)
     const tables = await queryRunner.getTables();
+    const userTables = tables.filter(
+      (table) =>
+        table.schema !== 'pg_catalog' && table.schema !== 'information_schema',
+    );
 
     // Disable foreign key constraints temporarily
     await queryRunner.query('SET CONSTRAINTS ALL DEFERRED;');
 
     // Truncate all tables
-    for (const table of tables) {
+    for (const table of userTables) {
       console.log(`Clearing table: ${table.name}`);
+      const schemaPrefix = table.schema ? `"${table.schema}".` : '';
       await queryRunner.query(
-        `TRUNCATE TABLE "${table.name}" RESTART IDENTITY CASCADE;`,
+        `TRUNCATE TABLE ${schemaPrefix}"${table.name}" RESTART IDENTITY CASCADE;`,
       );
     }
 
