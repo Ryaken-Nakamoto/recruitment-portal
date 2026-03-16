@@ -30,8 +30,12 @@ async function clearAllData() {
     // Disable foreign key constraints temporarily
     await queryRunner.query('SET CONSTRAINTS ALL DEFERRED;');
 
-    // Truncate all tables
+    // Truncate all tables (except migrations)
     for (const table of userTables) {
+      if (table.name === 'migrations') {
+        console.log(`Skipping table: ${table.name}`);
+        continue;
+      }
       console.log(`Clearing table: ${table.name}`);
       const schemaPrefix = table.schema ? `"${table.schema}".` : '';
       await queryRunner.query(
