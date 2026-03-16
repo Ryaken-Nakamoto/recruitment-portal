@@ -4,16 +4,16 @@ import { useState } from 'react';
 const DEV_STORAGE_KEY = 'dev_user_email';
 
 const MOCK_RECRUITERS = [
-  { label: 'Alice Park', email: 'alice.park@dev.local' },
-  { label: 'Ben Torres', email: 'ben.torres@dev.local' },
-  { label: 'Claire Novak', email: 'claire.novak@dev.local' },
-  { label: 'David Singh', email: 'david.singh@dev.local' },
-  { label: 'Emma Osei', email: 'emma.osei@dev.local' },
-  { label: 'Felix Yamamoto', email: 'felix.yamamoto@dev.local' },
-  { label: 'Grace Murphy', email: 'grace.murphy@dev.local' },
-  { label: 'Henry Kowalski', email: 'henry.kowalski@dev.local' },
-  { label: 'Isla Santos', email: 'isla.santos@dev.local' },
-  { label: 'James Okonkwo', email: 'james.okonkwo@dev.local' },
+  { label: 'Alice Park', email: 'alice.park@c4c.test' },
+  { label: 'Ben Torres', email: 'ben.torres@c4c.test' },
+  { label: 'Claire Novak', email: 'claire.novak@c4c.test' },
+  { label: 'David Singh', email: 'david.singh@c4c.test' },
+  { label: 'Emma Osei', email: 'emma.osei@c4c.test' },
+  { label: 'Felix Yamamoto', email: 'felix.yamamoto@c4c.test' },
+  { label: 'Grace Murphy', email: 'grace.murphy@c4c.test' },
+  { label: 'Henry Kowalski', email: 'henry.kowalski@c4c.test' },
+  { label: 'Isla Santos', email: 'isla.santos@c4c.test' },
+  { label: 'James Okonkwo', email: 'james.okonkwo@c4c.test' },
 ];
 
 export function DevUserSwitcher() {
