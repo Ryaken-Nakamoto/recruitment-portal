@@ -86,8 +86,16 @@ const MOCK_RECRUITERS: Array<{
 ];
 // ─────────────────────────────────────────────────────────────────────────────
 
-const MOCK_RESUME_URL =
-  'https://recruitment-portal-resumes-12324123t51234.s3.us-east-1.amazonaws.com/resumes/04f73eb0-c49d-4cb6-818c-7eb39538bfb4-Ryaken_Nakamoto_AI_Resume - Ryaken Nakamoto.pdf';
+function getMockResumeUrl(): string {
+  const bucket =
+    process.env.AWS_RESUMES_BUCKET ||
+    'recruitment-portal-resumes-12324123t51234';
+  const region = process.env.REGION || 'us-east-1';
+  const key =
+    process.env.SEED_MOCK_RESUME_KEY ||
+    'resumes/04f73eb0-c49d-4cb6-818c-7eb39538bfb4-Ryaken_Nakamoto_AI_Resume - Ryaken Nakamoto.pdf';
+  return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+}
 
 const FIRST_NAMES = [
   'Alex',
@@ -257,7 +265,7 @@ function generateMockApplications(): SubmitGoogleFormDto[] {
       college,
       major,
       codingExperience,
-      resumeUrl: MOCK_RESUME_URL,
+      resumeUrl: getMockResumeUrl(),
       whyC4C: `I am passionate about using technology for social good. I believe C4C's mission aligns with my values and I want to contribute meaningful work. (Applicant ${
         i + 1
       })`,
