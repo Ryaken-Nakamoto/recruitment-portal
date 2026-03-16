@@ -40,48 +40,48 @@ const MOCK_RECRUITERS: Array<{
   {
     firstName: 'Alice',
     lastName: 'Park',
-    email: 'ryaken.nakamoto.s@gmail.com',
+    email: 'alice.park@c4c.test',
   },
   {
     firstName: 'Ben',
     lastName: 'Torres',
-    email: 'ryaken.nakamoto.s@gmail.com',
+    email: 'ben.torres@c4c.test',
   },
   {
     firstName: 'Claire',
     lastName: 'Novak',
-    email: 'ryaken.nakamoto.s@gmail.com',
+    email: 'claire.novak@c4c.test',
   },
   {
     firstName: 'David',
     lastName: 'Singh',
-    email: 'ryaken.nakamoto.s@gmail.com',
+    email: 'david.singh@c4c.test',
   },
-  { firstName: 'Emma', lastName: 'Osei', email: 'ryaken.nakamoto.s@gmail.com' },
+  { firstName: 'Emma', lastName: 'Osei', email: 'emma.osei@c4c.test' },
   {
     firstName: 'Felix',
     lastName: 'Yamamoto',
-    email: 'ryaken.nakamoto.s@gmail.com',
+    email: 'felix.yamamoto@c4c.test',
   },
   {
     firstName: 'Grace',
     lastName: 'Murphy',
-    email: 'ryaken.nakamoto.s@gmail.com',
+    email: 'grace.murphy@c4c.test',
   },
   {
     firstName: 'Henry',
     lastName: 'Kowalski',
-    email: 'ryaken.nakamoto.s@gmail.com',
+    email: 'henry.kowalski@c4c.test',
   },
   {
     firstName: 'Isla',
     lastName: 'Santos',
-    email: 'ryaken.nakamoto.s@gmail.com',
+    email: 'isla.santos@c4c.test',
   },
   {
     firstName: 'James',
     lastName: 'Okonkwo',
-    email: 'ryaken.nakamoto.s@gmail.com',
+    email: 'james.okonkwo@c4c.test',
   },
 ];
 // ─────────────────────────────────────────────────────────────────────────────
@@ -493,6 +493,7 @@ export class SeedService implements OnApplicationBootstrap {
           firstName,
           lastName,
           email,
+          role: Role.RECRUITER,
           accountStatus: AccountStatus.ACTIVATED,
         }),
       );
