@@ -17,7 +17,7 @@ const ResumeDownloadCard: React.FC<ResumeDownloadCardProps> = ({
     if (loading) return;
     setLoading(true);
     try {
-      await apiClient.downloadResume(applicationId);
+      await apiClient.openResume(applicationId);
     } finally {
       setLoading(false);
     }

@@ -55,7 +55,7 @@ export class ApplicationsController {
     );
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Disposition': `inline; filename="${filename}"`,
     });
     return new StreamableFile(stream as unknown as Readable);
   }

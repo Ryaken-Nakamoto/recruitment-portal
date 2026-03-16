@@ -3,7 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import { Role } from '@api/dtos/enums';
 
 const ROLE_HIERARCHY: Record<Role, Role[]> = {
-  [Role.ADMIN]: [Role.ADMIN, Role.RECRUITER],
+  [Role.ADMIN]: [Role.ADMIN],
   [Role.RECRUITER]: [Role.RECRUITER],
 };
 
@@ -32,6 +32,9 @@ export const AuthedApp: React.FC<AuthedAppProps> = ({ allowedRoles }) => {
   if (!hasAccess) {
     if (user.role === Role.RECRUITER) {
       return <Navigate to="/recruiter/home" replace />;
+    }
+    if (user.role === Role.ADMIN) {
+      return <Navigate to="/admin/home" replace />;
     }
     return <Navigate to="/login" replace />;
   }

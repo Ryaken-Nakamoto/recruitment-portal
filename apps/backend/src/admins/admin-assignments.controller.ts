@@ -8,6 +8,7 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  DefaultValuePipe,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
@@ -83,6 +84,25 @@ export class AdminAssignmentsController {
     return this.adminAssignmentsService.removeReviewer(
       assignmentId,
       force ?? false,
+    );
+  }
+
+  @Get('history')
+  @Auth(Role.ADMIN)
+  getAssignmentHistory(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+  ) {
+    return this.adminAssignmentsService.getAssignmentHistory(page, limit);
+  }
+
+  @Get('history/:assignmentId')
+  @Auth(Role.ADMIN)
+  getAssignmentHistoryDetail(
+    @Param('assignmentId', ParseIntPipe) assignmentId: number,
+  ) {
+    return this.adminAssignmentsService.getAssignmentHistoryDetail(
+      assignmentId,
     );
   }
 }

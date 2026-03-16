@@ -4,16 +4,16 @@ import apiClient from '@api/apiClient';
 
 vi.mock('@api/apiClient', () => ({
   default: {
-    downloadResume: vi.fn(),
+    openResume: vi.fn(),
   },
 }));
 
-const mockDownloadResume = vi.mocked(apiClient.downloadResume);
+const mockOpenResume = vi.mocked(apiClient.openResume);
 
 describe('ResumeDownloadCard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockDownloadResume.mockResolvedValue(undefined);
+    mockOpenResume.mockResolvedValue(undefined);
   });
 
   it('renders resume label', () => {
@@ -27,13 +27,13 @@ describe('ResumeDownloadCard', () => {
     fireEvent.click(screen.getByTestId('resume-download-btn'));
 
     await waitFor(() => {
-      expect(mockDownloadResume).toHaveBeenCalledWith(42);
+      expect(mockOpenResume).toHaveBeenCalledWith(42);
     });
   });
 
   it('prevents double-click while loading', async () => {
     let resolveDownload!: () => void;
-    mockDownloadResume.mockReturnValue(
+    mockOpenResume.mockReturnValue(
       new Promise<void>((resolve) => {
         resolveDownload = resolve;
       }),
@@ -48,7 +48,7 @@ describe('ResumeDownloadCard', () => {
     // Resolve the pending download
     resolveDownload();
     await waitFor(() => {
-      expect(mockDownloadResume).toHaveBeenCalledTimes(1);
+      expect(mockOpenResume).toHaveBeenCalledTimes(1);
     });
   });
 });

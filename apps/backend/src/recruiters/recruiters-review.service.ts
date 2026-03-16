@@ -59,12 +59,21 @@ export class RecruitersReviewService {
     limit: number = 20,
   ) {
     const skip = (page - 1) * limit;
-    const [assignments, total] = await this.assignmentRepo.findAndCount({
+    // Load all assignments with application relation to filter by current round
+    const [allAssignments] = await this.assignmentRepo.findAndCount({
       where: { recruiter: { id: recruiter.id } },
       relations: ['application', 'application.applicant'],
-      skip,
-      take: limit,
+      order: { assignedAt: 'DESC' },
     });
+
+    // Only show active assignments: assignment.round === application's current round
+    const activeAssignments = allAssignments.filter((a) => {
+      const app = a.application as Application;
+      return a.round === app.round;
+    });
+
+    const total = activeAssignments.length;
+    const assignments = activeAssignments.slice(skip, skip + limit);
 
     const data = await Promise.all(
       assignments.map(async (a) => {
@@ -178,8 +187,8 @@ export class RecruitersReviewService {
       `Screening review submitted for assignment ${assignment.id} by recruiter ${recruiter.id}`,
     );
 
-    // Check if all assignments for this application now have reviews
-    await this.checkScreeningCompletion(app.id);
+    // Check if all current-round assignments for this application now have reviews
+    await this.checkScreeningCompletion(app.id, app.round);
 
     return { id: review.id };
   }
@@ -275,9 +284,12 @@ export class RecruitersReviewService {
       throw new ForbiddenException('Not assigned to this application');
     }
 
-    // Get all assignments for this application/round
+    // Get all current-round assignments for this application
     const allAssignments = await this.assignmentRepo.find({
-      where: { application: { id: app.id } },
+      where: {
+        application: { id: app.id },
+        round: app.round as unknown as ApplicationRound,
+      },
     });
 
     // Update review status
@@ -402,9 +414,16 @@ export class RecruitersReviewService {
     return { id: review.id, status: review.status };
   }
 
-  private async checkScreeningCompletion(applicationId: number): Promise<void> {
+  private async checkScreeningCompletion(
+    applicationId: number,
+    round: ApplicationRound,
+  ): Promise<void> {
+    // Count only current-round assignments
     const allAssignments = await this.assignmentRepo.find({
-      where: { application: { id: applicationId } },
+      where: {
+        application: { id: applicationId },
+        round: round as unknown as ApplicationRound,
+      },
     });
 
     const reviewCount = await this.screeningReviewRepo.count({
@@ -574,18 +593,26 @@ export class RecruitersReviewService {
   }
 
   async getCoReviewers(applicationId: number, recruiter: Recruiter) {
+    // Load the caller's assignment with application relation to get current round
     const callerAssignment = await this.assignmentRepo.findOne({
       where: {
         application: { id: applicationId },
         recruiter: { id: recruiter.id },
       },
+      relations: ['application'],
     });
     if (!callerAssignment) {
       throw new NotFoundException('Not assigned to this application');
     }
 
+    const app = callerAssignment.application as Application;
+
+    // Fetch co-reviewers for the current round only
     const assignments = await this.assignmentRepo.find({
-      where: { application: { id: applicationId } },
+      where: {
+        application: { id: applicationId },
+        round: app.round as unknown as ApplicationRound,
+      },
       relations: ['recruiter'],
     });
 
@@ -613,6 +640,138 @@ export class RecruitersReviewService {
       }`,
       reviewStatus: reviewedIds.has(a.id) ? 'submitted' : 'not_started',
     }));
+  }
+
+  async listCompletedAssignments(
+    recruiter: Recruiter,
+    page: number = 1,
+    limit: number = 20,
+  ) {
+    const skip = (page - 1) * limit;
+    const [allAssignments] = await this.assignmentRepo.findAndCount({
+      where: { recruiter: { id: recruiter.id } },
+      relations: ['application', 'application.applicant'],
+      order: { assignedAt: 'DESC' },
+    });
+
+    // Past-round: assignment.round !== application's current round
+    const completedAssignments = allAssignments.filter((a) => {
+      const app = a.application as Application;
+      return a.round !== app.round;
+    });
+
+    const total = completedAssignments.length;
+    const assignments = completedAssignments.slice(skip, skip + limit);
+
+    const data = await Promise.all(
+      assignments.map(async (a) => {
+        const app = a.application as Application;
+        const applicant = app.applicant as { name: string };
+        const review = await this.screeningReviewRepo.findOne({
+          where: { assignment: { id: a.id } },
+        });
+        return {
+          assignmentId: a.id,
+          application: {
+            id: app.id,
+            applicantName: applicant.name,
+            round: a.round,
+          },
+          reviewStatus: review
+            ? ('submitted' as const)
+            : ('not_started' as const),
+        };
+      }),
+    );
+
+    this.logger.log(
+      `Listed ${data.length} completed assignments (page ${page}) for recruiter ${recruiter.id}`,
+    );
+    return { data, total, page, totalPages: Math.ceil(total / limit) };
+  }
+
+  async getCompletedAssignmentDetail(
+    assignmentId: number,
+    recruiter: Recruiter,
+  ) {
+    const assignment = await this.assignmentRepo.findOne({
+      where: { id: assignmentId },
+      relations: [
+        'recruiter',
+        'application',
+        'application.applicant',
+        'application.rawGoogleForm',
+      ],
+    });
+    if (!assignment) {
+      throw new NotFoundException(`Assignment ${assignmentId} not found`);
+    }
+
+    const assignedRecruiter = assignment.recruiter as Recruiter;
+    if (assignedRecruiter.id !== recruiter.id) {
+      throw new ForbiddenException('Not authorized to view this assignment');
+    }
+
+    const app = assignment.application as Application;
+    if (assignment.round === app.round) {
+      throw new BadRequestException('Assignment is still active');
+    }
+
+    const applicant = app.applicant as {
+      id: number;
+      name: string;
+      email: string;
+      major: string;
+      academicYear: string;
+    };
+    const rawForm = app.rawGoogleForm as unknown as Record<string, unknown>;
+
+    const review = await this.screeningReviewRepo.findOne({
+      where: { assignment: { id: assignmentId } },
+      relations: ['scores', 'scores.criteria'],
+    });
+
+    const rubricCriteria = review
+      ? (review.scores as ScreeningReviewScore[]).map((s) => {
+          const criteria = s.criteria as ScreeningCriteria;
+          return {
+            id: criteria.id,
+            name: criteria.name,
+            oneDescription: criteria.oneDescription,
+            twoDescription: criteria.twoDescription,
+            threeDescription: criteria.threeDescription,
+            score: s.score,
+          };
+        })
+      : [];
+
+    this.logger.log(
+      `Recruiter ${recruiter.id} fetched completed assignment detail for assignment ${assignmentId}`,
+    );
+
+    return {
+      assignmentId: assignment.id,
+      recruiterName: `${assignedRecruiter.firstName} ${assignedRecruiter.lastName}`,
+      recruiterId: assignedRecruiter.id,
+      assignedAt: assignment.assignedAt,
+      notes: assignment.notes,
+      round: assignment.round,
+      reviewStatus: review ? ('submitted' as const) : ('not_started' as const),
+      rubricCriteria,
+      application: {
+        id: app.id,
+        round: app.round,
+        roundStatus: app.roundStatus,
+        applicant: {
+          id: applicant.id,
+          name: applicant.name,
+          email: applicant.email,
+          major: applicant.major,
+          academicYear: applicant.academicYear,
+        },
+        rawGoogleForm: rawForm,
+      },
+    };
   }
 
   async updateNotes(

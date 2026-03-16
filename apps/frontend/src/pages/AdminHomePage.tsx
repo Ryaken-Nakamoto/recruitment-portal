@@ -6,6 +6,7 @@ import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import GradingIcon from '@mui/icons-material/Grading';
 import EmailIcon from '@mui/icons-material/Email';
 import MarkEmailReadIcon from '@mui/icons-material/MarkEmailRead';
+import HistoryIcon from '@mui/icons-material/History';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { signOut } from 'aws-amplify/auth';
 
@@ -62,6 +63,14 @@ const CARDS = [
     title: 'Sent Emails',
     description: 'Browse a history of all emails sent to applicants',
     route: '/admin/sent-emails',
+  },
+  {
+    icon: <HistoryIcon sx={{ fontSize: 42 }} />,
+    iconColor: C4C_PINK,
+    accentColor: C4C_PINK,
+    title: 'Assignment History',
+    description: 'View past recruiter assignments by round',
+    route: '/admin/assignment-history',
   },
 ];
 

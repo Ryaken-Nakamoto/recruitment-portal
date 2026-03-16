@@ -4,13 +4,16 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   CircularProgress,
   Pagination,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableRow,
+  Tabs,
   Typography,
 } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -18,9 +21,12 @@ import { useQuery } from '@tanstack/react-query';
 import { signOut } from 'aws-amplify/auth';
 
 import apiClient from '@api/apiClient';
+import { ReviewStatus } from '@api/dtos/enums';
 import { ApplicationRow } from '../components/ApplicationRow';
+import { formatRound } from './ApplicationsPage';
 
 const RecruiterHomePage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
   const [page, setPage] = useState(1);
   const navigate = useNavigate();
   const limit = 20;
@@ -28,6 +34,17 @@ const RecruiterHomePage: React.FC = () => {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['myAssignments', page],
     queryFn: () => apiClient.getMyAssignments(page, limit),
+    enabled: activeTab === 'active',
+  });
+
+  const {
+    data: completedData,
+    isLoading: completedLoading,
+    isError: completedError,
+  } = useQuery({
+    queryKey: ['myCompletedAssignments', page],
+    queryFn: () => apiClient.getMyCompletedAssignments(page, limit),
+    enabled: activeTab === 'completed',
   });
 
   const handleLogout = async () => {
@@ -134,69 +151,178 @@ const RecruiterHomePage: React.FC = () => {
       </Box>
 
       <Box sx={{ p: 4 }}>
-        <Typography variant="h5" fontWeight="bold" mb={3}>
+        <Typography variant="h5" fontWeight="bold" mb={2}>
           My Assignments
         </Typography>
 
-        {isLoading && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-            <CircularProgress />
-          </Box>
-        )}
+        <Tabs
+          value={activeTab}
+          onChange={(_e, val: 'active' | 'completed') => {
+            setActiveTab(val);
+            setPage(1);
+          }}
+          sx={{ mb: 3 }}
+        >
+          <Tab label="In Progress" value="active" />
+          <Tab label="Completed" value="completed" />
+        </Tabs>
 
-        {isError && (
-          <Alert severity="error">
-            Failed to load assignments. Please refresh the page.
-          </Alert>
-        )}
-
-        {data && (
+        {activeTab === 'active' && (
           <>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Applicant</TableCell>
-                  <TableCell>Round</TableCell>
-                  <TableCell>Reviews</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {data.data.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={3}
-                      align="center"
-                      sx={{ py: 4, color: 'text.secondary' }}
-                    >
-                      No assignments yet
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  data.data.map((assignment) => (
-                    <ApplicationRow
-                      key={assignment.assignmentId}
-                      role="recruiter"
-                      app={assignment}
-                      onClick={() =>
-                        navigate(
-                          `/recruiter/applications/${assignment.application.id}`,
-                        )
-                      }
-                    />
-                  ))
-                )}
-              </TableBody>
-            </Table>
-
-            {data.totalPages > 1 && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-                <Pagination
-                  count={data.totalPages}
-                  page={page}
-                  onChange={(_e, value) => setPage(value)}
-                  color="primary"
-                />
+            {isLoading && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+                <CircularProgress />
               </Box>
+            )}
+
+            {isError && (
+              <Alert severity="error">
+                Failed to load assignments. Please refresh the page.
+              </Alert>
+            )}
+
+            {data && (
+              <>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Applicant</TableCell>
+                      <TableCell>Round</TableCell>
+                      <TableCell>Reviews</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {data.data.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={3}
+                          align="center"
+                          sx={{ py: 4, color: 'text.secondary' }}
+                        >
+                          No assignments yet
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      data.data.map((assignment) => (
+                        <ApplicationRow
+                          key={assignment.assignmentId}
+                          role="recruiter"
+                          app={assignment}
+                          onClick={() =>
+                            navigate(
+                              `/recruiter/applications/${assignment.application.id}`,
+                            )
+                          }
+                        />
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+
+                {data.totalPages > 1 && (
+                  <Box
+                    sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}
+                  >
+                    <Pagination
+                      count={data.totalPages}
+                      page={page}
+                      onChange={(_e, value) => setPage(value)}
+                      color="primary"
+                    />
+                  </Box>
+                )}
+              </>
+            )}
+          </>
+        )}
+
+        {activeTab === 'completed' && (
+          <>
+            {completedLoading && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+                <CircularProgress />
+              </Box>
+            )}
+
+            {completedError && (
+              <Alert severity="error">
+                Failed to load completed assignments. Please refresh the page.
+              </Alert>
+            )}
+
+            {completedData && (
+              <>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Applicant</TableCell>
+                      <TableCell>Round</TableCell>
+                      <TableCell>Status</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {completedData.data.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={3}
+                          align="center"
+                          sx={{ py: 4, color: 'text.secondary' }}
+                        >
+                          No completed assignments
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      completedData.data.map((item) => (
+                        <TableRow
+                          key={item.assignmentId}
+                          hover
+                          sx={{ cursor: 'pointer' }}
+                          onClick={() =>
+                            navigate(
+                              `/recruiter/completed-assignments/${item.assignmentId}`,
+                            )
+                          }
+                        >
+                          <TableCell>
+                            {item.application.applicantName}
+                          </TableCell>
+                          <TableCell>
+                            {formatRound(item.application.round as never)}
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={
+                                item.reviewStatus === ReviewStatus.SUBMITTED
+                                  ? 'Reviewed'
+                                  : 'Not Reviewed'
+                              }
+                              color={
+                                item.reviewStatus === ReviewStatus.SUBMITTED
+                                  ? 'success'
+                                  : 'default'
+                              }
+                              size="small"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+
+                {completedData.totalPages > 1 && (
+                  <Box
+                    sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}
+                  >
+                    <Pagination
+                      count={completedData.totalPages}
+                      page={page}
+                      onChange={(_e, value) => setPage(value)}
+                      color="primary"
+                    />
+                  </Box>
+                )}
+              </>
             )}
           </>
         )}

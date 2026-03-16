@@ -34,7 +34,7 @@ export interface ExecuteAssignmentRequest {
 
 export interface ExecuteAssignmentResponse {
   assigned: number;
-  skippedAppIds: number[];
+  skippedApps: { appId: number; existingRecruiters: string[] }[];
 }
 
 export interface AddReviewerRequest {
@@ -133,4 +133,62 @@ export interface RecruiterDetailResponse {
     inProgress: number;
   };
   assignments: RecruiterDetailAssignment[];
+}
+
+export interface AssignmentHistoryItem {
+  id: number;
+  applicantName: string;
+  applicationId: number;
+  round: string;
+  recruiterName: string;
+  assignedAt: string;
+  reviewStatus: ReviewStatus;
+}
+
+export interface AssignmentHistoryListResponse {
+  data: AssignmentHistoryItem[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export interface AssignmentHistoryDetail {
+  assignmentId: number;
+  recruiterName: string;
+  recruiterId: number;
+  assignedAt: string;
+  notes: string | null;
+  round: string;
+  reviewStatus: ReviewStatus;
+  rubricCriteria: AssignmentDetailCriteria[];
+  application: {
+    id: number;
+    round: string;
+    roundStatus: string;
+    applicant: {
+      id: number;
+      name: string;
+      email: string;
+      major: string;
+      academicYear: string;
+    };
+    rawGoogleForm: Record<string, unknown>;
+  };
+}
+
+export interface RecruiterCompletedAssignmentItem {
+  assignmentId: number;
+  application: {
+    id: number;
+    applicantName: string;
+    round: string;
+  };
+  reviewStatus: ReviewStatus;
+}
+
+export interface RecruiterCompletedAssignmentsResponse {
+  data: RecruiterCompletedAssignmentItem[];
+  total: number;
+  page: number;
+  totalPages: number;
 }

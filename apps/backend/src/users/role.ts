@@ -4,6 +4,6 @@ export enum Role {
 }
 
 export const ROLE_HIERARCHY: Record<Role, Role[]> = {
-  [Role.ADMIN]: [Role.ADMIN, Role.RECRUITER],
+  [Role.ADMIN]: [Role.ADMIN],
   [Role.RECRUITER]: [Role.RECRUITER],
 };

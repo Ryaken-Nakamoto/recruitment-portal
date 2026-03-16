@@ -57,3 +57,21 @@ export interface BulkDecideResponse {
   succeeded: number[];
   failed: BulkDecideFailure[];
 }
+
+export interface BulkSendEmailRequest {
+  applicationIds: number[];
+}
+
+export interface BulkSendEmailResponse {
+  succeeded: number[];
+  failed: BulkDecideFailure[];
+}
+
+export interface BulkRevertRequest {
+  applicationIds: number[];
+}
+
+export interface BulkRevertResponse {
+  succeeded: number[];
+  failed: BulkDecideFailure[];
+}

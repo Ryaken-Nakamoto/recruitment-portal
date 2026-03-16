@@ -28,6 +28,7 @@ const setup = (
       <Routes>
         <Route path="/login" element={<div>Login Page</div>} />
         <Route path="/recruiter/home" element={<div>Recruiter Home</div>} />
+        <Route path="/admin/home" element={<div>Admin Home</div>} />
         <Route
           path="/protected"
           element={<AuthedApp allowedRoles={allowedRoles} />}
@@ -67,8 +68,8 @@ describe('AuthedApp', () => {
     expect(screen.getByText('Recruiter Home')).toBeTruthy();
   });
 
-  it('grants admin access to recruiter routes via role hierarchy', () => {
+  it('denies admin access to recruiter routes and redirects to admin home', () => {
     setup([false, false, makeUser(Role.ADMIN)], [Role.RECRUITER]);
-    expect(screen.getByText('Protected Content')).toBeTruthy();
+    expect(screen.getByText('Admin Home')).toBeTruthy();
   });
 });

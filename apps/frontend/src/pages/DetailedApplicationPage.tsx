@@ -7,7 +7,6 @@ import {
   Button,
   Chip,
   CircularProgress,
-  Grid,
   IconButton,
   Paper,
   TextField,
@@ -17,46 +16,19 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 import apiClient from '@api/apiClient';
 import {
-  FormYearDisplay,
-  CollegeDisplay,
-  CodingExperienceDisplay,
-  HearAboutC4CDisplay,
-} from '@api/dtos/application-detail.dto';
-import {
   formatRound,
   formatRoundStatus,
   formatFinalDecision,
 } from './ApplicationsPage';
-import ResumeDownloadCard from '../components/ResumeDownloadCard';
+import { ApplicationContentSections } from '../components/ApplicationContentSections';
 import { ScreeningCriteriaTable } from '../components/ScreeningCriteriaTable';
 import { AssignmentsSection } from '../components/AssignmentsSection';
+import { InterviewRoundPlaceholder } from '../components/InterviewRoundPlaceholder';
 import { ApplicationRound } from '@api/dtos/enums';
 import {
   AdminApplicationReview,
   AssignmentDetailResponse,
 } from '@api/dtos/assignment.dto';
-
-const SHORT_ANSWER_QUESTIONS = [
-  { key: 'whyC4C', label: 'Why are you interested in C4C?' },
-  {
-    key: 'selfStartedProject',
-    label: 'Reflect on a project you self-started.',
-  },
-  {
-    key: 'communityImpact',
-    label: 'Describe a time when you made a positive impact on your community.',
-  },
-  {
-    key: 'teamConflict',
-    label:
-      'Describe a time when you were working on a team and there was conflict.',
-  },
-  {
-    key: 'otherExperiences',
-    label:
-      'Highlight or describe any other experiences you think are relevant.',
-  },
-] as const;
 
 function validateScores(
   rubricCriteria: AssignmentDetailResponse['rubricCriteria'],
@@ -283,6 +255,7 @@ const DetailedApplicationPage: React.FC = () => {
   }
 
   const { applicant, rawGoogleForm } = data;
+  // rawGoogleForm is passed to ApplicationContentSections
 
   return (
     <Box sx={{ p: 4, maxWidth: 900, mx: 'auto' }}>
@@ -328,8 +301,13 @@ const DetailedApplicationPage: React.FC = () => {
         </Typography>
       </Box>
 
-      {/* Admin: Assignments section */}
-      {isAdmin && (
+      {/* Admin: non-screening round placeholder */}
+      {isAdmin && data.round !== ApplicationRound.SCREENING && (
+        <InterviewRoundPlaceholder round={data.round} />
+      )}
+
+      {/* Admin: Assignments section (screening only) */}
+      {isAdmin && data.round === ApplicationRound.SCREENING && (
         <AssignmentsSection
           applicationId={data.id}
           applicationRound={data.round}
@@ -338,163 +316,11 @@ const DetailedApplicationPage: React.FC = () => {
         />
       )}
 
-      {/* Section 1: Applicant & Basic Info */}
-      <Paper variant="outlined" sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" sx={{ mb: 2 }}>
-          Applicant Information
-        </Typography>
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <Typography variant="caption" color="text.secondary">
-              Full Name
-            </Typography>
-            <Typography variant="body1">{rawGoogleForm.fullName}</Typography>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <Typography variant="caption" color="text.secondary">
-              Email
-            </Typography>
-            <Typography variant="body1">{rawGoogleForm.email}</Typography>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <Typography variant="caption" color="text.secondary">
-              Year
-            </Typography>
-            <Typography variant="body1">
-              {FormYearDisplay[rawGoogleForm.year]}
-            </Typography>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <Typography variant="caption" color="text.secondary">
-              College
-            </Typography>
-            <Typography variant="body1">
-              {CollegeDisplay[rawGoogleForm.college]}
-            </Typography>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <Typography variant="caption" color="text.secondary">
-              Major
-            </Typography>
-            <Typography variant="body1">{rawGoogleForm.major}</Typography>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <Typography variant="caption" color="text.secondary">
-              Applied Before
-            </Typography>
-            <Typography variant="body1">
-              {rawGoogleForm.appliedBefore}
-            </Typography>
-          </Grid>
-          {isAdmin && (
-            <Grid size={{ xs: 12 }}>
-              <ResumeDownloadCard applicationId={data.id} />
-            </Grid>
-          )}
-        </Grid>
-      </Paper>
-
-      {/* Section 2: Coding Experience */}
-      <Paper variant="outlined" sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" sx={{ mb: 2 }}>
-          Coding Experience
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-          What experience do you have with coding?
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          {rawGoogleForm.codingExperience.map((exp) => (
-            <Chip
-              key={exp}
-              label={CodingExperienceDisplay[exp]}
-              size="small"
-              variant="outlined"
-            />
-          ))}
-          {rawGoogleForm.codingExperienceOther && (
-            <Chip
-              label={`Other: ${rawGoogleForm.codingExperienceOther}`}
-              size="small"
-              variant="outlined"
-            />
-          )}
-        </Box>
-      </Paper>
-
-      {/* Section 3: Short Answer Responses */}
-      <Paper variant="outlined" sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" sx={{ mb: 2 }}>
-          Short Answer Responses
-        </Typography>
-        {SHORT_ANSWER_QUESTIONS.map(({ key, label }) => {
-          const answer = rawGoogleForm[key];
-          if (!answer) return null;
-          return (
-            <Box key={key} sx={{ mb: 3, '&:last-child': { mb: 0 } }}>
-              <Typography
-                variant="subtitle2"
-                fontWeight="bold"
-                sx={{ mb: 0.5 }}
-              >
-                {label}
-              </Typography>
-              <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-                {answer}
-              </Typography>
-            </Box>
-          );
-        })}
-      </Paper>
-
-      {/* Section 4: Additional Info */}
-      <Paper variant="outlined" sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" sx={{ mb: 2 }}>
-          Additional Information
-        </Typography>
-
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 0.5 }}>
-            How did you hear about C4C?
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            {rawGoogleForm.heardAboutC4C.map((source) => (
-              <Chip
-                key={source}
-                label={HearAboutC4CDisplay[source]}
-                size="small"
-                variant="outlined"
-              />
-            ))}
-            {rawGoogleForm.heardAboutC4COther && (
-              <Chip
-                label={`Other: ${rawGoogleForm.heardAboutC4COther}`}
-                size="small"
-                variant="outlined"
-              />
-            )}
-          </Box>
-        </Box>
-
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 0.5 }}>
-            Please list your commitments for this Fall.
-          </Typography>
-          <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-            {rawGoogleForm.fallCommitments}
-          </Typography>
-        </Box>
-
-        {rawGoogleForm.questionsOrConcerns && (
-          <Box>
-            <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 0.5 }}>
-              Any questions or concerns?
-            </Typography>
-            <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-              {rawGoogleForm.questionsOrConcerns}
-            </Typography>
-          </Box>
-        )}
-      </Paper>
+      <ApplicationContentSections
+        applicationId={data.id}
+        rawGoogleForm={rawGoogleForm}
+        showResume={isAdmin}
+      />
 
       {/* Recruiter: co-reviewers */}
       {!isAdmin && (

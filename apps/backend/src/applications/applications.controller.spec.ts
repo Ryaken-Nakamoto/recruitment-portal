@@ -85,7 +85,7 @@ describe('ApplicationsController', () => {
       expect(service.getResumeStream).toHaveBeenCalledWith(1);
       expect(mockRes.set).toHaveBeenCalledWith({
         'Content-Type': 'application/pdf',
-        'Content-Disposition': 'attachment; filename="abc-resume.pdf"',
+        'Content-Disposition': 'inline; filename="abc-resume.pdf"',
       });
       expect(result).toBeInstanceOf(StreamableFile);
     });

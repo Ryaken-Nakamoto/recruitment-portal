@@ -77,6 +77,29 @@ export class RecruitersReviewController {
     return this.reviewService.getAssignmentByApplication(applicationId, user);
   }
 
+  @Get('assignments/completed')
+  @Auth(Role.RECRUITER)
+  listCompletedAssignments(
+    @ReqUser() user: Recruiter,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '20',
+  ) {
+    return this.reviewService.listCompletedAssignments(
+      user,
+      parseInt(page, 10),
+      parseInt(limit, 10),
+    );
+  }
+
+  @Get('assignments/completed/:assignmentId')
+  @Auth(Role.RECRUITER)
+  getCompletedAssignmentDetail(
+    @Param('assignmentId', ParseIntPipe) assignmentId: number,
+    @ReqUser() user: Recruiter,
+  ) {
+    return this.reviewService.getCompletedAssignmentDetail(assignmentId, user);
+  }
+
   @Get('assignments/:assignmentId')
   @Auth(Role.RECRUITER)
   getAssignmentDetail(

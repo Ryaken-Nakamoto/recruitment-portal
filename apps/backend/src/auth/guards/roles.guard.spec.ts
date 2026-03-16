@@ -40,10 +40,12 @@ describe('RolesGuard', () => {
     expect(guard.canActivate(makeContext(makeUser(Role.ADMIN)))).toBe(true);
   });
 
-  it('allows an admin to access a recruiter route via role hierarchy', () => {
+  it('throws UnauthorizedException when an admin tries to access a recruiter route', () => {
     const guard = new (RolesGuard([Role.RECRUITER]))();
 
-    expect(guard.canActivate(makeContext(makeUser(Role.ADMIN)))).toBe(true);
+    expect(() => guard.canActivate(makeContext(makeUser(Role.ADMIN)))).toThrow(
+      UnauthorizedException,
+    );
   });
 
   it('throws UnauthorizedException when a recruiter tries to access an admin-only route', () => {

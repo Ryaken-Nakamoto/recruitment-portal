@@ -9,9 +9,10 @@ import {
 import { Relation } from 'typeorm';
 import { Recruiter } from '../../recruiters/entities/recruiter.entity';
 import { Application } from './application.entity';
+import { ApplicationRound } from '../enums/application-round.enum';
 
 @Entity()
-@Unique(['recruiter', 'application'])
+@Unique(['recruiter', 'application', 'round'])
 export class Assignment {
   @PrimaryGeneratedColumn()
   id: number;
@@ -21,6 +22,9 @@ export class Assignment {
 
   @ManyToOne(() => Application, { onDelete: 'CASCADE' })
   application: Relation<Application>;
+
+  @Column({ type: 'varchar', default: ApplicationRound.SCREENING })
+  round: ApplicationRound;
 
   @CreateDateColumn()
   assignedAt: Date;

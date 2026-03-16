@@ -102,12 +102,16 @@ const ApplicationsPage: React.FC = () => {
   const [decideError, setDecideError] = useState<BulkDecideFailure[] | null>(
     null,
   );
+  const [noSelectionError, setNoSelectionError] = useState(false);
   const [deciding, setDeciding] = useState(false);
+  const [sendingEmails, setSendingEmails] = useState(false);
+  const [revertingEmails, setRevertingEmails] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const limit = 20;
 
   const isAwaitingAdmin = activeStatus === RoundStatus.AWAITING_ADMIN;
+  const isPendingEmail = activeStatus === RoundStatus.PENDING_EMAIL;
 
   const { data, isLoading, isError } = useQuery({
     queryKey: [
@@ -155,6 +159,10 @@ const ApplicationsPage: React.FC = () => {
   }
 
   async function handleBulkDecide(decision: 'advance' | 'reject') {
+    if (selectedIds.size === 0) {
+      setNoSelectionError(true);
+      return;
+    }
     setDeciding(true);
     try {
       const result = await apiClient.bulkDecide({
@@ -171,16 +179,62 @@ const ApplicationsPage: React.FC = () => {
     }
   }
 
+  async function handleBulkSendEmails() {
+    if (selectedIds.size === 0) {
+      setNoSelectionError(true);
+      return;
+    }
+    setSendingEmails(true);
+    try {
+      const result = await apiClient.bulkSendEmails({
+        applicationIds: Array.from(selectedIds),
+      });
+      setSelectedIds(new Set());
+      await queryClient.invalidateQueries({ queryKey: ['applications'] });
+      if (result.failed.length > 0) {
+        setDecideError(result.failed);
+      }
+    } finally {
+      setSendingEmails(false);
+    }
+  }
+
+  async function handleBulkRevert() {
+    if (selectedIds.size === 0) {
+      setNoSelectionError(true);
+      return;
+    }
+    setRevertingEmails(true);
+    try {
+      const result = await apiClient.bulkRevertToPendingAdmin({
+        applicationIds: Array.from(selectedIds),
+      });
+      setSelectedIds(new Set());
+      await queryClient.invalidateQueries({ queryKey: ['applications'] });
+      if (result.failed.length > 0) {
+        setDecideError(result.failed);
+      }
+    } finally {
+      setRevertingEmails(false);
+    }
+  }
+
   const visibleIds = data?.data.map((a) => a.id) ?? [];
   const allSelected =
     visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
   const someSelected =
     visibleIds.some((id) => selectedIds.has(id)) && !allSelected;
 
-  const colCount = isAwaitingAdmin ? 9 : 7;
+  const isBatchOperationActive = isAwaitingAdmin || isPendingEmail;
+  const colCount = isBatchOperationActive ? 8 : 7;
 
   return (
-    <Box sx={{ p: 4, pb: selectedIds.size > 0 && isAwaitingAdmin ? 12 : 4 }}>
+    <Box
+      sx={{
+        p: 4,
+        pb: isBatchOperationActive ? 12 : 4,
+      }}
+    >
       <Box sx={{ mb: 2 }}>
         <IconButton
           onClick={() => navigate('/admin/home')}
@@ -235,7 +289,7 @@ const ApplicationsPage: React.FC = () => {
                 <TableCell>Academic Year</TableCell>
                 <TableCell>Round</TableCell>
                 <TableCell>Round Status</TableCell>
-                <TableCell>Reviews</TableCell>
+                <TableCell>{isPendingEmail ? 'Decision' : 'Reviews'}</TableCell>
                 {isAwaitingAdmin && (
                   <TableCell>
                     <TableSortLabel
@@ -247,7 +301,7 @@ const ApplicationsPage: React.FC = () => {
                     </TableSortLabel>
                   </TableCell>
                 )}
-                {isAwaitingAdmin && (
+                {isBatchOperationActive && (
                   <TableCell padding="checkbox">
                     <Checkbox
                       checked={allSelected}
@@ -276,13 +330,14 @@ const ApplicationsPage: React.FC = () => {
                     role="admin"
                     app={app}
                     showAvgScore={isAwaitingAdmin}
+                    showFinalDecision={isPendingEmail}
                     onClick={() =>
                       app.roundStatus === RoundStatus.PENDING_EMAIL
                         ? navigate(`/admin/applications/${app.id}/email`)
                         : navigate(`/admin/applications/${app.id}`)
                     }
                     selected={selectedIds.has(app.id)}
-                    onSelect={isAwaitingAdmin ? handleSelect : undefined}
+                    onSelect={isBatchOperationActive ? handleSelect : undefined}
                   />
                 ))
               )}
@@ -302,7 +357,7 @@ const ApplicationsPage: React.FC = () => {
         </>
       )}
 
-      {selectedIds.size > 0 && isAwaitingAdmin && (
+      {isAwaitingAdmin && (
         <Box
           sx={{
             position: 'fixed',
@@ -314,12 +369,24 @@ const ApplicationsPage: React.FC = () => {
             borderTop: 1,
             borderColor: 'divider',
             display: 'flex',
+            justifyContent: 'space-between',
             alignItems: 'center',
-            gap: 2,
             zIndex: 1200,
           }}
         >
-          <Typography>{selectedIds.size} selected</Typography>
+          <Button
+            variant="contained"
+            color="error"
+            disabled={deciding}
+            onClick={() => handleBulkDecide('reject')}
+          >
+            Reject
+          </Button>
+          <Typography>
+            {selectedIds.size > 0
+              ? `${selectedIds.size} selected`
+              : 'No selection'}
+          </Typography>
           <Button
             variant="contained"
             color="success"
@@ -328,13 +395,46 @@ const ApplicationsPage: React.FC = () => {
           >
             Advance
           </Button>
+        </Box>
+      )}
+
+      {isPendingEmail && (
+        <Box
+          sx={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            p: 2,
+            bgcolor: 'background.paper',
+            borderTop: 1,
+            borderColor: 'divider',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            zIndex: 1200,
+          }}
+        >
           <Button
             variant="contained"
-            color="error"
-            disabled={deciding}
-            onClick={() => handleBulkDecide('reject')}
+            color="warning"
+            disabled={revertingEmails}
+            onClick={handleBulkRevert}
           >
-            Reject
+            Move back to Pending Admin
+          </Button>
+          <Typography>
+            {selectedIds.size > 0
+              ? `${selectedIds.size} selected`
+              : 'No selection'}
+          </Typography>
+          <Button
+            variant="contained"
+            color="primary"
+            disabled={sendingEmails}
+            onClick={handleBulkSendEmails}
+          >
+            Send Emails
           </Button>
         </Box>
       )}
@@ -354,6 +454,22 @@ const ApplicationsPage: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDecideError(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={noSelectionError}
+        onClose={() => setNoSelectionError(false)}
+      >
+        <DialogTitle>No applications selected</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Please select at least one application before performing this
+            action.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNoSelectionError(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>

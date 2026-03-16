@@ -16,6 +16,8 @@ import { MakeDecisionDto } from './dto/make-decision.dto';
 import { BulkDecideDto } from './dto/bulk-decide.dto';
 import { SendEmailDto } from './dto/send-email.dto';
 import { EmailPreviewDto } from './dto/email-preview.dto';
+import { BulkSendEmailDto } from './dto/bulk-send-email.dto';
+import { BulkRevertDto } from './dto/bulk-revert.dto';
 
 @ApiTags('Admin - Decisions')
 @Controller('admin')
@@ -67,5 +69,17 @@ export class AdminDecisionsController {
   @Auth(Role.ADMIN)
   getSentEmail(@Param('id', ParseIntPipe) id: number) {
     return this.adminDecisionsService.getSentEmail(id);
+  }
+
+  @Patch('applications/bulk-send-email')
+  @Auth(Role.ADMIN)
+  bulkSendEmails(@Body() dto: BulkSendEmailDto) {
+    return this.adminDecisionsService.bulkSendEmails(dto);
+  }
+
+  @Patch('applications/bulk-revert-to-admin')
+  @Auth(Role.ADMIN)
+  bulkRevertToAdmin(@Body() dto: BulkRevertDto) {
+    return this.adminDecisionsService.bulkRevertToPendingAdmin(dto);
   }
 }

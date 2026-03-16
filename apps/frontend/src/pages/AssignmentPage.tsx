@@ -38,11 +38,22 @@ type SnackbarState = {
 };
 
 type AppSummary = { id: number; name: string };
+type SkippedAppInfo = {
+  id: number;
+  name: string;
+  existingRecruiters: string[];
+};
+type BlockedAppInfo = { id: number; name: string; roundStatus: RoundStatus };
 
 const ROUND_LABELS: Record<ApplicationRound, string> = {
   [ApplicationRound.SCREENING]: 'Screening',
   [ApplicationRound.TECHNICAL_INTERVIEW]: 'Technical Interview',
   [ApplicationRound.BEHAVIORAL_INTERVIEW]: 'Behavioral Interview',
+};
+
+const STATUS_LABELS: Partial<Record<RoundStatus, string>> = {
+  [RoundStatus.PENDING_EMAIL]: 'Pending Email',
+  [RoundStatus.EMAIL_SENT]: 'Email Sent',
 };
 
 const AssignmentPage: React.FC = () => {
@@ -63,11 +74,11 @@ const AssignmentPage: React.FC = () => {
   });
 
   // Dialog state
-  const [blockedApps, setBlockedApps] = useState<AppSummary[]>([]);
+  const [blockedApps, setBlockedApps] = useState<BlockedAppInfo[]>([]);
   const [awaitingApps, setAwaitingApps] = useState<AppSummary[]>([]);
   const [pendingRequest, setPendingRequest] =
     useState<ExecuteAssignmentRequest | null>(null);
-  const [skippedApps, setSkippedApps] = useState<AppSummary[]>([]);
+  const [skippedApps, setSkippedApps] = useState<SkippedAppInfo[]>([]);
 
   const {
     data: applications,
@@ -94,9 +105,10 @@ const AssignmentPage: React.FC = () => {
       const appMap = new Map(
         (applications ?? []).map((a) => [a.id, a.applicant.name]),
       );
-      const skipped = data.skippedAppIds.map((id) => ({
-        id,
-        name: appMap.get(id) ?? `App #${id}`,
+      const skipped = data.skippedApps.map(({ appId, existingRecruiters }) => ({
+        id: appId,
+        name: appMap.get(appId) ?? `App #${appId}`,
+        existingRecruiters,
       }));
       setSkippedApps(skipped);
       setSnackbar({
@@ -156,7 +168,11 @@ const AssignmentPage: React.FC = () => {
           a.roundStatus === RoundStatus.PENDING_EMAIL ||
           a.roundStatus === RoundStatus.EMAIL_SENT,
       )
-      .map((a) => ({ id: a.id, name: a.applicant.name }));
+      .map((a) => ({
+        id: a.id,
+        name: a.applicant.name,
+        roundStatus: a.roundStatus,
+      }));
     if (blocked.length > 0) {
       setBlockedApps(blocked);
       return;
@@ -259,11 +275,14 @@ const AssignmentPage: React.FC = () => {
         {/* Left column — Applications */}
         <Box
           sx={{
-            flex: 1,
+            flex: 0.45,
+            height: 550,
             border: 1,
             borderColor: 'divider',
             borderRadius: 1,
             p: 2,
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           <Typography variant="h6" mb={2}>
@@ -335,7 +354,8 @@ const AssignmentPage: React.FC = () => {
         {/* Middle column — Controls */}
         <Box
           sx={{
-            width: 220,
+            flex: 1,
+            height: 550,
             border: 1,
             borderColor: 'divider',
             borderRadius: 1,
@@ -370,7 +390,15 @@ const AssignmentPage: React.FC = () => {
               </strong>
               <ul style={{ margin: '4px 0 0', paddingLeft: 16 }}>
                 {skippedApps.map((a) => (
-                  <li key={a.id}>{a.name}</li>
+                  <li key={a.id}>
+                    <strong>{a.name}</strong>
+                    {a.existingRecruiters.length > 0 && (
+                      <>
+                        {' '}
+                        — already assigned: {a.existingRecruiters.join(', ')}
+                      </>
+                    )}
+                  </li>
                 ))}
               </ul>
             </Alert>
@@ -380,6 +408,7 @@ const AssignmentPage: React.FC = () => {
             variant="contained"
             onClick={handleExecute}
             disabled={isPending}
+            sx={{ flex: 1, fontSize: '5rem' }}
           >
             {isPending ? <CircularProgress size={20} /> : 'Execute'}
           </Button>
@@ -388,11 +417,14 @@ const AssignmentPage: React.FC = () => {
         {/* Right column — Recruiters */}
         <Box
           sx={{
-            flex: 1,
+            flex: 0.45,
+            height: 550,
             border: 1,
             borderColor: 'divider',
             borderRadius: 1,
             p: 2,
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           <Typography variant="h6" mb={2}>
@@ -458,7 +490,10 @@ const AssignmentPage: React.FC = () => {
           <List dense disablePadding sx={{ mt: 1 }}>
             {blockedApps.map((a) => (
               <ListItem key={a.id} disableGutters>
-                <ListItemText primary={a.name} />
+                <ListItemText
+                  primary={a.name}
+                  secondary={STATUS_LABELS[a.roundStatus]}
+                />
               </ListItem>
             ))}
           </List>

@@ -19,6 +19,8 @@ import RecruiterDetailPage from '@pages/RecruiterDetailPage';
 import SendEmailPage from '@pages/SendEmailPage';
 import SentEmailsPage from '@pages/SentEmailsPage';
 import SentEmailDetailPage from '@pages/SentEmailDetailPage';
+import AssignmentHistoryPage from '@pages/AssignmentHistoryPage';
+import AssignmentHistoryDetailPage from '@pages/AssignmentHistoryDetailPage';
 import { AuthedApp } from './components/AuthedApp';
 import { Role } from '@api/dtos/enums';
 // ─── DEV ONLY ─ remove before shipping ───────────────────────────────────────
@@ -34,7 +36,7 @@ const router = createBrowserRouter([
   },
   {
     path: '/recruiter',
-    element: <AuthedApp allowedRoles={[Role.ADMIN, Role.RECRUITER]} />,
+    element: <AuthedApp allowedRoles={[Role.RECRUITER]} />,
     children: [
       {
         index: true,
@@ -51,6 +53,10 @@ const router = createBrowserRouter([
       {
         path: 'applications/:id',
         element: <DetailedApplicationPage />,
+      },
+      {
+        path: 'completed-assignments/:id',
+        element: <AssignmentHistoryDetailPage />,
       },
     ],
   },
@@ -105,6 +111,14 @@ const router = createBrowserRouter([
       {
         path: 'sent-emails/:id',
         element: <SentEmailDetailPage />,
+      },
+      {
+        path: 'assignment-history',
+        element: <AssignmentHistoryPage />,
+      },
+      {
+        path: 'assignment-history/:id',
+        element: <AssignmentHistoryDetailPage />,
       },
     ],
   },

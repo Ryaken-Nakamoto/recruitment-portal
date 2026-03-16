@@ -1,8 +1,12 @@
-import { Checkbox, TableCell, TableRow } from '@mui/material';
+import { Checkbox, TableCell, TableRow, Typography } from '@mui/material';
 import { ApplicationListItemDto } from '@api/dtos/application.dto';
 import { RecruiterAssignmentDto } from '@api/dtos/assignment.dto';
-import { ApplicationRound, AcademicYear } from '@api/dtos/enums';
-import { formatRound, formatAcademicYear } from '../pages/ApplicationsPage';
+import { ApplicationRound, AcademicYear, FinalDecision } from '@api/dtos/enums';
+import {
+  formatRound,
+  formatAcademicYear,
+  formatFinalDecision,
+} from '../pages/ApplicationsPage';
 import { ReviewProgressBadge } from './ReviewProgressBadge';
 import { RoundStatusBadge } from './RoundStatusBadge';
 
@@ -13,6 +17,7 @@ interface AdminRowProps {
   role: 'admin';
   app: AdminApp;
   showAvgScore?: boolean;
+  showFinalDecision?: boolean;
   selected?: boolean;
   onSelect?: (id: number, checked: boolean) => void;
   onClick: () => void;
@@ -31,6 +36,7 @@ export const ApplicationRow: React.FC<Props> = (props) => {
     const {
       app,
       showAvgScore = false,
+      showFinalDecision = false,
       selected = false,
       onSelect,
       onClick,
@@ -58,7 +64,13 @@ export const ApplicationRow: React.FC<Props> = (props) => {
           <RoundStatusBadge status={a.roundStatus} />
         </TableCell>
         <TableCell>
-          {a.round === ApplicationRound.SCREENING ? (
+          {showFinalDecision ? (
+            <Typography variant="body2">
+              {a.finalDecision
+                ? formatFinalDecision(a.finalDecision as FinalDecision)
+                : 'Advanced'}
+            </Typography>
+          ) : a.round === ApplicationRound.SCREENING ? (
             <ReviewProgressBadge
               submitted={reviewsSubmitted}
               total={reviewsTotal}

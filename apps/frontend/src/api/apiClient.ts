@@ -9,6 +9,10 @@ import {
   ApplicationsListResponse,
   BulkDecideRequest,
   BulkDecideResponse,
+  BulkSendEmailRequest,
+  BulkSendEmailResponse,
+  BulkRevertRequest,
+  BulkRevertResponse,
 } from './dtos/application.dto';
 import { ApplicationDetailResponse } from './dtos/application-detail.dto';
 import {
@@ -16,10 +20,13 @@ import {
   AddReviewerResponse,
   AdminApplicationReview,
   AssignmentDetailResponse,
+  AssignmentHistoryDetail,
+  AssignmentHistoryListResponse,
   AssignmentReviewerInfo,
   ExecuteAssignmentRequest,
   ExecuteAssignmentResponse,
   RecruiterAssignmentsResponse,
+  RecruiterCompletedAssignmentsResponse,
   RecruiterDetailResponse,
   RecruiterSummaryDto,
   RemoveReviewerResponse,
@@ -118,6 +125,24 @@ export class ApiClient {
       '/api/admin/applications/bulk-decide',
       dto,
     ) as Promise<BulkDecideResponse>;
+  }
+
+  public async bulkSendEmails(
+    dto: BulkSendEmailRequest,
+  ): Promise<BulkSendEmailResponse> {
+    return this.patch(
+      '/api/admin/applications/bulk-send-email',
+      dto,
+    ) as Promise<BulkSendEmailResponse>;
+  }
+
+  public async bulkRevertToPendingAdmin(
+    dto: BulkRevertRequest,
+  ): Promise<BulkRevertResponse> {
+    return this.patch(
+      '/api/admin/applications/bulk-revert-to-admin',
+      dto,
+    ) as Promise<BulkRevertResponse>;
   }
 
   public async inviteRecruiter(dto: InviteRecruiterRequest): Promise<User> {
@@ -297,6 +322,40 @@ export class ApiClient {
     );
   }
 
+  public async getAssignmentHistory(
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<AssignmentHistoryListResponse> {
+    return this.get(
+      `/api/admin/assignments/history?page=${page}&limit=${limit}`,
+    ) as Promise<AssignmentHistoryListResponse>;
+  }
+
+  public async getAssignmentHistoryDetail(
+    id: number,
+  ): Promise<AssignmentHistoryDetail> {
+    return this.get(
+      `/api/admin/assignments/history/${id}`,
+    ) as Promise<AssignmentHistoryDetail>;
+  }
+
+  public async getMyCompletedAssignments(
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<RecruiterCompletedAssignmentsResponse> {
+    return this.get(
+      `/api/recruiter/assignments/completed?page=${page}&limit=${limit}`,
+    ) as Promise<RecruiterCompletedAssignmentsResponse>;
+  }
+
+  public async getRecruiterCompletedAssignmentDetail(
+    id: number,
+  ): Promise<AssignmentHistoryDetail> {
+    return this.get(
+      `/api/recruiter/assignments/completed/${id}`,
+    ) as Promise<AssignmentHistoryDetail>;
+  }
+
   public async getSentEmails(
     page: number = 1,
     limit: number = 20,
@@ -312,23 +371,14 @@ export class ApiClient {
     ) as Promise<SentEmailDetailDto>;
   }
 
-  public async downloadResume(applicationId: number): Promise<void> {
+  public async openResume(applicationId: number): Promise<void> {
     const response = await this.axiosInstance.get(
       `/api/admin/applications/${applicationId}/resume`,
       { responseType: 'blob' },
     );
-    const disposition =
-      (response.headers['content-disposition'] as string) ?? '';
-    const match = disposition.match(/filename="([^"]+)"/);
-    const filename = match ? match[1] : 'resume.pdf';
     const url = URL.createObjectURL(response.data as Blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   private async get(path: string): Promise<unknown> {

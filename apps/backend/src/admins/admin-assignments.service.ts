@@ -32,8 +32,6 @@ export class AdminAssignmentsService {
     private readonly recruiterRepo: Repository<Recruiter>,
     @InjectRepository(ScreeningReview)
     private readonly screeningReviewRepo: Repository<ScreeningReview>,
-    @InjectRepository(ScreeningReviewScore)
-    private readonly screeningReviewScoreRepo: Repository<ScreeningReviewScore>,
   ) {}
 
   async listApplicationsByRound(round?: ApplicationRound) {
@@ -71,7 +69,10 @@ export class AdminAssignmentsService {
     applicationIds: number[],
     recruiterIds: number[],
     recruitersPerApp: number,
-  ): Promise<{ assigned: number; skippedAppIds: number[] }> {
+  ): Promise<{
+    assigned: number;
+    skippedApps: { appId: number; existingRecruiters: string[] }[];
+  }> {
     if (applicationIds.length === 0) {
       throw new BadRequestException('applicationIds must not be empty');
     }
@@ -115,7 +116,7 @@ export class AdminAssignmentsService {
       });
     }
 
-    // Load existing assignments to skip duplicates
+    // Load existing assignments to skip duplicates within the same round
     const existingAssignments = await this.assignmentRepo.find({
       where: { application: { id: In(applicationIds) } },
       relations: ['recruiter', 'application'],
@@ -125,28 +126,42 @@ export class AdminAssignmentsService {
         (a) =>
           `${(a.application as Application).id}:${
             (a.recruiter as Recruiter).id
-          }`,
+          }:${a.round}`,
       ),
     );
 
-    // Round-robin assignment — skip pairs that already exist
+    // Build map appId → existing recruiter names
+    const existingRecruitersByApp = new Map<number, string[]>();
+    for (const a of existingAssignments) {
+      const appId = (a.application as Application).id;
+      const r = a.recruiter as Recruiter;
+      const entry = existingRecruitersByApp.get(appId) ?? [];
+      entry.push(`${r.firstName} ${r.lastName}`);
+      existingRecruitersByApp.set(appId, entry);
+    }
+
+    // Round-robin assignment — skip pairs that already exist in the same round
     const K = recruiters.length;
     let assigned = 0;
     const appsWithNewAssignments = new Set<number>();
-    const skippedAppIds = new Set<number>();
+    const skippedAppMap = new Map<number, string[]>();
 
     for (let i = 0; i < applications.length; i++) {
       for (let j = 0; j < recruitersPerApp; j++) {
         const recruiter = recruiters[(i * recruitersPerApp + j) % K];
-        const key = `${applications[i].id}:${recruiter.id}`;
+        const key = `${applications[i].id}:${recruiter.id}:${applications[i].round}`;
         if (existingPairs.has(key)) {
-          skippedAppIds.add(applications[i].id);
+          skippedAppMap.set(
+            applications[i].id,
+            existingRecruitersByApp.get(applications[i].id) ?? [],
+          );
           continue;
         }
 
         const assignment = this.assignmentRepo.create({
           recruiter,
           application: applications[i],
+          round: applications[i].round,
         });
         await this.assignmentRepo.save(assignment);
         appsWithNewAssignments.add(applications[i].id);
@@ -169,9 +184,14 @@ export class AdminAssignmentsService {
     }
 
     this.logger.log(
-      `Added ${assigned} new assignments across ${applications.length} applications (${skippedAppIds.size} apps had duplicates skipped)`,
+      `Added ${assigned} new assignments across ${applications.length} applications (${skippedAppMap.size} apps had duplicates skipped)`,
     );
-    return { assigned, skippedAppIds: Array.from(skippedAppIds) };
+    return {
+      assigned,
+      skippedApps: Array.from(skippedAppMap.entries()).map(
+        ([appId, existingRecruiters]) => ({ appId, existingRecruiters }),
+      ),
+    };
   }
 
   async getApplicationReviews(applicationId: number) {
@@ -182,8 +202,12 @@ export class AdminAssignmentsService {
       throw new NotFoundException(`Application ${applicationId} not found`);
     }
 
+    // Only return assignments for the current round
     const assignments = await this.assignmentRepo.find({
-      where: { application: { id: applicationId } },
+      where: {
+        application: { id: applicationId },
+        round: application.round as unknown as ApplicationRound,
+      },
       relations: ['recruiter'],
     });
 
@@ -245,8 +269,12 @@ export class AdminAssignmentsService {
       throw new NotFoundException(`Application ${applicationId} not found`);
     }
 
+    // Only return assignments for the current round
     const assignments = await this.assignmentRepo.find({
-      where: { application: { id: applicationId } },
+      where: {
+        application: { id: applicationId },
+        round: application.round as unknown as ApplicationRound,
+      },
       relations: ['recruiter'],
     });
 
@@ -297,10 +325,12 @@ export class AdminAssignmentsService {
       throw new NotFoundException(`Recruiter ${recruiterId} not found`);
     }
 
+    // Conflict check is scoped to the current round
     const existing = await this.assignmentRepo.findOne({
       where: {
         application: { id: applicationId },
         recruiter: { id: recruiterId },
+        round: application.round as unknown as ApplicationRound,
       },
     });
     if (existing) {
@@ -309,14 +339,21 @@ export class AdminAssignmentsService {
       );
     }
 
-    const assignment = this.assignmentRepo.create({ recruiter, application });
+    const assignment = this.assignmentRepo.create({
+      recruiter,
+      application,
+      round: application.round,
+    });
     const saved = await this.assignmentRepo.save(assignment);
 
-    if (application.roundStatus === RoundStatus.AWAITING_ADMIN) {
+    if (
+      application.roundStatus === RoundStatus.PENDING ||
+      application.roundStatus === RoundStatus.AWAITING_ADMIN
+    ) {
       application.roundStatus = RoundStatus.IN_PROGRESS;
       await this.applicationRepo.save(application);
       this.logger.log(
-        `Application ${applicationId} reset to IN_PROGRESS after adding recruiter ${recruiterId}`,
+        `Application ${applicationId} transitioned to IN_PROGRESS after adding recruiter ${recruiterId}`,
       );
     }
 
@@ -353,6 +390,13 @@ export class AdminAssignmentsService {
       );
     }
 
+    // Block removal of retired assignments (from a previous round)
+    if (assignment.round !== app.round) {
+      throw new BadRequestException(
+        'Cannot remove a retired assignment from a previous round.',
+      );
+    }
+
     const review = await this.screeningReviewRepo.findOne({
       where: { assignment: { id: assignmentId } },
     });
@@ -370,9 +414,12 @@ export class AdminAssignmentsService {
       `Removed assignment ${assignmentId} (recruiter ${recruiter.id}) from application ${app.id}`,
     );
 
-    // Re-check completion status
+    // Re-check completion status using only current-round assignments
     const remaining = await this.assignmentRepo.find({
-      where: { application: { id: app.id } },
+      where: {
+        application: { id: app.id },
+        round: app.round as unknown as ApplicationRound,
+      },
     });
 
     let newStatus: RoundStatus;
@@ -397,5 +444,119 @@ export class AdminAssignmentsService {
     );
 
     return { conflict: false, roundStatus: newStatus };
+  }
+
+  async getAssignmentHistory(page: number = 1, limit: number = 20) {
+    const skip = (page - 1) * limit;
+
+    const [assignments, total] = await this.assignmentRepo
+      .createQueryBuilder('a')
+      .leftJoinAndSelect('a.application', 'app')
+      .leftJoinAndSelect('app.applicant', 'applicant')
+      .leftJoinAndSelect('a.recruiter', 'recruiter')
+      .where('a.round != app.round')
+      .orderBy('a.assignedAt', 'DESC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    const assignmentIds = assignments.map((a) => a.id);
+    const reviews =
+      assignmentIds.length > 0
+        ? await this.screeningReviewRepo.find({
+            where: { assignment: { id: In(assignmentIds) } },
+            relations: ['assignment'],
+          })
+        : [];
+    const reviewedIds = new Set(
+      reviews.map((r) => (r.assignment as Assignment).id),
+    );
+
+    const data = assignments.map((a) => {
+      const app = a.application as Application;
+      const applicant = app.applicant as Applicant;
+      const recruiter = a.recruiter as Recruiter;
+      return {
+        id: a.id,
+        applicantName: applicant.name,
+        applicationId: app.id,
+        round: a.round,
+        recruiterName: `${recruiter.firstName} ${recruiter.lastName}`,
+        assignedAt: a.assignedAt,
+        reviewStatus: reviewedIds.has(a.id)
+          ? ('submitted' as const)
+          : ('not_started' as const),
+      };
+    });
+
+    this.logger.log(`Listed ${data.length} retired assignments (page ${page})`);
+    return { data, total, page, totalPages: Math.ceil(total / limit) };
+  }
+
+  async getAssignmentHistoryDetail(assignmentId: number) {
+    const assignment = await this.assignmentRepo.findOne({
+      where: { id: assignmentId },
+      relations: [
+        'recruiter',
+        'application',
+        'application.applicant',
+        'application.rawGoogleForm',
+      ],
+    });
+    if (!assignment) {
+      throw new NotFoundException(`Assignment ${assignmentId} not found`);
+    }
+
+    const recruiter = assignment.recruiter as Recruiter;
+    const app = assignment.application as Application;
+    const applicant = app.applicant as Applicant;
+    const rawForm = app.rawGoogleForm as unknown as Record<string, unknown>;
+
+    const review = await this.screeningReviewRepo.findOne({
+      where: { assignment: { id: assignmentId } },
+      relations: ['scores', 'scores.criteria'],
+    });
+
+    const rubricCriteria = review
+      ? (review.scores as ScreeningReviewScore[]).map((s) => {
+          const criteria = s.criteria as ScreeningCriteria;
+          return {
+            id: criteria.id,
+            name: criteria.name,
+            oneDescription: criteria.oneDescription,
+            twoDescription: criteria.twoDescription,
+            threeDescription: criteria.threeDescription,
+            score: s.score,
+          };
+        })
+      : [];
+
+    this.logger.log(
+      `Admin fetched assignment history detail for assignment ${assignmentId}`,
+    );
+
+    return {
+      assignmentId: assignment.id,
+      recruiterName: `${recruiter.firstName} ${recruiter.lastName}`,
+      recruiterId: recruiter.id,
+      assignedAt: assignment.assignedAt,
+      notes: assignment.notes,
+      round: assignment.round,
+      reviewStatus: review ? ('submitted' as const) : ('not_started' as const),
+      rubricCriteria,
+      application: {
+        id: app.id,
+        round: app.round,
+        roundStatus: app.roundStatus,
+        applicant: {
+          id: (applicant as unknown as { id: number }).id,
+          name: applicant.name,
+          email: applicant.email,
+          major: applicant.major,
+          academicYear: applicant.academicYear,
+        },
+        rawGoogleForm: rawForm,
+      },
+    };
   }
 }

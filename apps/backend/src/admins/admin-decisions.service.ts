@@ -19,6 +19,8 @@ import { MakeDecisionDto } from './dto/make-decision.dto';
 import { BulkDecideDto } from './dto/bulk-decide.dto';
 import { EmailPreviewDto } from './dto/email-preview.dto';
 import { SendEmailDto } from './dto/send-email.dto';
+import { BulkSendEmailDto } from './dto/bulk-send-email.dto';
+import { BulkRevertDto } from './dto/bulk-revert.dto';
 import { SesService } from '../util/ses/ses.service';
 
 const ROUND_ORDER: ApplicationRound[] = [
@@ -250,6 +252,152 @@ export class AdminDecisionsService {
     }
 
     await this.applicationRepo.save(application);
+  }
+
+  async bulkSendEmails(dto: BulkSendEmailDto): Promise<{
+    succeeded: number[];
+    failed: Array<{ id: number; applicantName: string; reason: string }>;
+  }> {
+    if (dto.applicationIds.length === 0) {
+      return { succeeded: [], failed: [] };
+    }
+
+    const apps = await this.applicationRepo.find({
+      where: { id: In(dto.applicationIds) },
+      relations: ['applicant'],
+    });
+
+    const succeeded: number[] = [];
+    const failed: Array<{ id: number; applicantName: string; reason: string }> =
+      [];
+    const successfulApps: Application[] = [];
+    const fromEmail = process.env.SENDER_EMAIL ?? '';
+
+    for (const app of apps) {
+      const applicant = app.applicant as Applicant;
+      if (app.roundStatus !== RoundStatus.PENDING_EMAIL) {
+        failed.push({
+          id: app.id,
+          applicantName: applicant.name,
+          reason: `Application is not in Pending Email state (current: ${app.roundStatus})`,
+        });
+        continue;
+      }
+
+      try {
+        const templateDecision = app.finalDecision ?? FinalDecision.ACCEPTED;
+        const template = await this.emailRepo.findOne({
+          where: {
+            applicationStage: app.round,
+            decision: templateDecision,
+          },
+        });
+        if (!template) {
+          failed.push({
+            id: app.id,
+            applicantName: applicant.name,
+            reason: `No email template found for round ${app.round} / decision ${templateDecision}`,
+          });
+          continue;
+        }
+
+        const rendered = this.renderTemplate(template.subject, template.body, {
+          firstName: applicant.name.split(' ')[0],
+        });
+
+        await this.sesService.sendEmail({
+          to: applicant.email,
+          from: fromEmail,
+          subject: rendered.subject,
+          body: rendered.body,
+        });
+
+        const sentEmail = this.sentEmailRepo.create({
+          applicationId: app.id,
+          toEmail: applicant.email,
+          fromEmail,
+          subject: rendered.subject,
+          body: rendered.body,
+          applicationStage: app.round,
+          finalDecision: app.finalDecision,
+        });
+        await this.sentEmailRepo.save(sentEmail);
+
+        // Transition state based on outcome
+        if (app.finalDecision !== null) {
+          app.roundStatus = RoundStatus.EMAIL_SENT;
+        } else {
+          app.round = this.getNextRound(app.round);
+          app.roundStatus = RoundStatus.PENDING;
+        }
+
+        succeeded.push(app.id);
+        successfulApps.push(app);
+      } catch (error) {
+        failed.push({
+          id: app.id,
+          applicantName: applicant.name,
+          reason: `Failed to send email: ${
+            error instanceof Error ? error.message : 'Unknown error'
+          }`,
+        });
+      }
+    }
+
+    if (successfulApps.length > 0) {
+      await this.applicationRepo.save(successfulApps);
+    }
+
+    this.logger.log(
+      `Bulk send emails: ${succeeded.length} succeeded, ${failed.length} failed`,
+    );
+
+    return { succeeded, failed };
+  }
+
+  async bulkRevertToPendingAdmin(dto: BulkRevertDto): Promise<{
+    succeeded: number[];
+    failed: Array<{ id: number; applicantName: string; reason: string }>;
+  }> {
+    if (dto.applicationIds.length === 0) {
+      return { succeeded: [], failed: [] };
+    }
+
+    const apps = await this.applicationRepo.find({
+      where: { id: In(dto.applicationIds) },
+      relations: ['applicant'],
+    });
+
+    const succeeded: number[] = [];
+    const failed: Array<{ id: number; applicantName: string; reason: string }> =
+      [];
+    const successfulApps: Application[] = [];
+
+    for (const app of apps) {
+      const applicant = app.applicant as Applicant;
+      if (app.roundStatus !== RoundStatus.PENDING_EMAIL) {
+        failed.push({
+          id: app.id,
+          applicantName: applicant.name,
+          reason: `Application is not in Pending Email state (current: ${app.roundStatus})`,
+        });
+        continue;
+      }
+
+      app.roundStatus = RoundStatus.AWAITING_ADMIN;
+      succeeded.push(app.id);
+      successfulApps.push(app);
+    }
+
+    if (successfulApps.length > 0) {
+      await this.applicationRepo.save(successfulApps);
+    }
+
+    this.logger.log(
+      `Bulk revert to pending admin: ${succeeded.length} succeeded, ${failed.length} failed`,
+    );
+
+    return { succeeded, failed };
   }
 
   async getSentEmails(

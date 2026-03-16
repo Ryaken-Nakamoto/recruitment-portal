@@ -1,5 +1,5 @@
 // ─── DEV ONLY ─ delete this entire file before shipping ──────────────────────
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 const DEV_STORAGE_KEY = 'dev_user_email';
 
@@ -21,6 +21,10 @@ export function DevUserSwitcher() {
     localStorage.getItem(DEV_STORAGE_KEY) ?? '',
   );
   const [custom, setCustom] = useState('');
+  const [pos, setPos] = useState({ x: 16, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const switchTo = (email: string) => {
     if (email) {
@@ -32,12 +36,40 @@ export function DevUserSwitcher() {
     window.location.reload();
   };
 
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (containerRef.current) {
+      setDragging(true);
+      setDragOffset({
+        x: e.clientX - pos.x,
+        y: e.clientY - pos.y,
+      });
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (dragging) {
+      setPos({
+        x: e.clientX - dragOffset.x,
+        y: e.clientY - dragOffset.y,
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setDragging(false);
+  };
+
   return (
     <div
+      ref={containerRef}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
       style={{
         position: 'fixed',
-        bottom: 16,
-        right: 16,
+        left: `${pos.x}px`,
+        top: `${pos.y}px`,
         zIndex: 9999,
         background: '#fff',
         border: '2px solid #e53e3e',
@@ -50,6 +82,8 @@ export function DevUserSwitcher() {
         flexDirection: 'column',
         gap: 6,
         minWidth: 220,
+        cursor: dragging ? 'grabbing' : 'grab',
+        userSelect: 'none',
       }}
     >
       <div style={{ color: '#e53e3e', fontWeight: 700, marginBottom: 2 }}>
