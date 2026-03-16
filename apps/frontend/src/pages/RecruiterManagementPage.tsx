@@ -196,16 +196,15 @@ const RecruiterManagementPage: React.FC = () => {
                 </TableRow>
               ) : (
                 data.data.map((recruiter) => (
-                  <TableRow key={recruiter.id}>
-                    <TableCell
-                      sx={{
-                        cursor: 'pointer',
-                        '&:hover': { textDecoration: 'underline' },
-                      }}
-                      onClick={() =>
-                        navigate(`/admin/recruiters/${recruiter.id}`)
-                      }
-                    >
+                  <TableRow
+                    key={recruiter.id}
+                    hover
+                    sx={{ cursor: 'pointer' }}
+                    onClick={() =>
+                      navigate(`/admin/recruiters/${recruiter.id}`)
+                    }
+                  >
+                    <TableCell>
                       {recruiter.firstName} {recruiter.lastName}
                     </TableCell>
                     <TableCell>{recruiter.email}</TableCell>
@@ -215,7 +214,7 @@ const RecruiterManagementPage: React.FC = () => {
                     <TableCell>
                       {new Date(recruiter.createdDate).toLocaleDateString()}
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <ActionButton
                         recruiter={recruiter}
                         onDeactivate={(id) => deactivate(id)}

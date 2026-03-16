@@ -319,7 +319,7 @@ const DetailedApplicationPage: React.FC = () => {
       <ApplicationContentSections
         applicationId={data.id}
         rawGoogleForm={rawGoogleForm}
-        showResume={isAdmin}
+        showResume={true}
       />
 
       {/* Recruiter: co-reviewers */}

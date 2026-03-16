@@ -14,6 +14,7 @@ import {
   FormControl,
   FormControlLabel,
   IconButton,
+  InputAdornment,
   InputLabel,
   List,
   ListItem,
@@ -25,6 +26,7 @@ import {
   Typography,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ClearIcon from '@mui/icons-material/Clear';
 import { useMutation, useQuery } from '@tanstack/react-query';
 
 import apiClient from '@api/apiClient';
@@ -67,6 +69,8 @@ const AssignmentPage: React.FC = () => {
   );
   const [recruitersPerApp, setRecruitersPerApp] = useState<number>(1);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [appSearch, setAppSearch] = useState('');
+  const [recruiterSearch, setRecruiterSearch] = useState('');
   const [snackbar, setSnackbar] = useState<SnackbarState>({
     open: false,
     message: '',
@@ -79,6 +83,17 @@ const AssignmentPage: React.FC = () => {
   const [pendingRequest, setPendingRequest] =
     useState<ExecuteAssignmentRequest | null>(null);
   const [skippedApps, setSkippedApps] = useState<SkippedAppInfo[]>([]);
+
+  const fuzzyMatch = (query: string, target: string): boolean => {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    const t = target.toLowerCase();
+    let qi = 0;
+    for (let i = 0; i < t.length && qi < q.length; i++) {
+      if (t[i] === q[qi]) qi++;
+    }
+    return qi === q.length;
+  };
 
   const {
     data: applications,
@@ -127,6 +142,14 @@ const AssignmentPage: React.FC = () => {
       });
     },
   });
+
+  const filteredApps = (applications ?? []).filter((a) =>
+    fuzzyMatch(appSearch, a.applicant.name),
+  );
+
+  const filteredRecruiters = (recruiters ?? []).filter((r) =>
+    fuzzyMatch(recruiterSearch, `${r.firstName} ${r.lastName}`),
+  );
 
   const buildRequest = (): ExecuteAssignmentRequest => ({
     applicationIds: Array.from(selectedApps),
@@ -216,30 +239,44 @@ const AssignmentPage: React.FC = () => {
   };
 
   const allAppsSelected =
-    applications != null &&
-    applications.length > 0 &&
-    selectedApps.size === applications.length;
+    filteredApps.length > 0 &&
+    filteredApps.every((a) => selectedApps.has(a.id));
 
   const allRecruitersSelected =
-    recruiters != null &&
-    recruiters.length > 0 &&
-    selectedRecruiters.size === recruiters.length;
+    filteredRecruiters.length > 0 &&
+    filteredRecruiters.every((r) => selectedRecruiters.has(r.id));
 
   const toggleAllApps = () => {
-    if (!applications) return;
     if (allAppsSelected) {
-      setSelectedApps(new Set());
+      setSelectedApps(
+        (prev) =>
+          new Set(
+            Array.from(prev).filter(
+              (id) => !filteredApps.map((a) => a.id).includes(id),
+            ),
+          ),
+      );
     } else {
-      setSelectedApps(new Set(applications.map((a) => a.id)));
+      setSelectedApps(
+        (prev) => new Set([...prev, ...filteredApps.map((a) => a.id)]),
+      );
     }
   };
 
   const toggleAllRecruiters = () => {
-    if (!recruiters) return;
     if (allRecruitersSelected) {
-      setSelectedRecruiters(new Set());
+      setSelectedRecruiters(
+        (prev) =>
+          new Set(
+            Array.from(prev).filter(
+              (id) => !filteredRecruiters.map((r) => r.id).includes(id),
+            ),
+          ),
+      );
     } else {
-      setSelectedRecruiters(new Set(recruiters.map((r) => r.id)));
+      setSelectedRecruiters(
+        (prev) => new Set([...prev, ...filteredRecruiters.map((r) => r.id)]),
+      );
     }
   };
 
@@ -289,6 +326,31 @@ const AssignmentPage: React.FC = () => {
             Applications
           </Typography>
 
+          <TextField
+            size="small"
+            fullWidth
+            placeholder="Search..."
+            value={appSearch}
+            onChange={(e) => setAppSearch(e.target.value)}
+            slotProps={{
+              input: {
+                endAdornment: appSearch ? (
+                  <InputAdornment position="end">
+                    <IconButton
+                      size="small"
+                      onClick={() => setAppSearch('')}
+                      edge="end"
+                      aria-label="clear search"
+                    >
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ) : null,
+              },
+            }}
+            sx={{ mb: 2 }}
+          />
+
           <FormControl fullWidth size="small" sx={{ mb: 2 }}>
             <InputLabel>Round</InputLabel>
             <Select
@@ -325,12 +387,14 @@ const AssignmentPage: React.FC = () => {
                 label="Select all"
               />
               <Box sx={{ maxHeight: 400, overflowY: 'auto' }}>
-                {applications.length === 0 ? (
+                {filteredApps.length === 0 ? (
                   <Typography color="text.secondary" sx={{ py: 2 }}>
-                    No applications for this round
+                    {appSearch
+                      ? 'No matching applications'
+                      : 'No applications for this round'}
                   </Typography>
                 ) : (
-                  applications.map((app) => (
+                  filteredApps.map((app) => (
                     <Box
                       key={app.id}
                       sx={{ display: 'flex', alignItems: 'center' }}
@@ -404,14 +468,23 @@ const AssignmentPage: React.FC = () => {
             </Alert>
           )}
 
-          <Button
-            variant="contained"
-            onClick={handleExecute}
-            disabled={isPending}
-            sx={{ flex: 1, fontSize: '5rem' }}
+          <Box
+            sx={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
-            {isPending ? <CircularProgress size={20} /> : 'Execute'}
-          </Button>
+            <Button
+              variant="contained"
+              onClick={handleExecute}
+              disabled={isPending}
+              sx={{ px: 6, py: 3, fontSize: '1.5rem' }}
+            >
+              {isPending ? <CircularProgress size={20} /> : 'Execute'}
+            </Button>
+          </Box>
         </Box>
 
         {/* Right column — Recruiters */}
@@ -430,6 +503,31 @@ const AssignmentPage: React.FC = () => {
           <Typography variant="h6" mb={2}>
             Recruiters
           </Typography>
+
+          <TextField
+            size="small"
+            fullWidth
+            placeholder="Search..."
+            value={recruiterSearch}
+            onChange={(e) => setRecruiterSearch(e.target.value)}
+            slotProps={{
+              input: {
+                endAdornment: recruiterSearch ? (
+                  <InputAdornment position="end">
+                    <IconButton
+                      size="small"
+                      onClick={() => setRecruiterSearch('')}
+                      edge="end"
+                      aria-label="clear search"
+                    >
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ) : null,
+              },
+            }}
+            sx={{ mb: 2 }}
+          />
 
           {recruitersLoading && <CircularProgress size={24} />}
           {recruitersError && (
@@ -451,12 +549,14 @@ const AssignmentPage: React.FC = () => {
                 label="Select all"
               />
               <Box sx={{ maxHeight: 400, overflowY: 'auto' }}>
-                {recruiters.length === 0 ? (
+                {filteredRecruiters.length === 0 ? (
                   <Typography color="text.secondary" sx={{ py: 2 }}>
-                    No active recruiters
+                    {recruiterSearch
+                      ? 'No matching recruiters'
+                      : 'No active recruiters'}
                   </Typography>
                 ) : (
-                  recruiters.map((r) => (
+                  filteredRecruiters.map((r) => (
                     <Box
                       key={r.id}
                       sx={{ display: 'flex', alignItems: 'center' }}

@@ -45,7 +45,7 @@ export class ApplicationsController {
   }
 
   @Get(':id/resume')
-  @Auth(Role.ADMIN)
+  @Auth(Role.ADMIN, Role.RECRUITER)
   async downloadResume(
     @Param('id', ParseIntPipe) id: number,
     @Res({ passthrough: true }) res: Response,
