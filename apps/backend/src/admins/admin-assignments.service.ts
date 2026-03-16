@@ -390,8 +390,12 @@ export class AdminAssignmentsService {
       );
     }
 
-    // Block removal of retired assignments (from a previous round)
-    if (assignment.round !== app.round) {
+    // Block removal of retired assignments (from a previous round or terminal decision with email sent)
+    if (
+      assignment.round !== app.round ||
+      (app.finalDecision !== null &&
+        (app.roundStatus as unknown as RoundStatus) === RoundStatus.EMAIL_SENT)
+    ) {
       throw new BadRequestException(
         'Cannot remove a retired assignment from a previous round.',
       );
@@ -454,7 +458,10 @@ export class AdminAssignmentsService {
       .leftJoinAndSelect('a.application', 'app')
       .leftJoinAndSelect('app.applicant', 'applicant')
       .leftJoinAndSelect('a.recruiter', 'recruiter')
-      .where('a.round != app.round')
+      .where(
+        '(a.round != app.round OR (app.finalDecision IS NOT NULL AND app.roundStatus = :emailSent))',
+      )
+      .setParameter('emailSent', RoundStatus.EMAIL_SENT)
       .orderBy('a.assignedAt', 'DESC')
       .skip(skip)
       .take(limit)

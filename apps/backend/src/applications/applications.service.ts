@@ -221,11 +221,10 @@ export class ApplicationsService {
     const data: ApplicationListItemDto[] = applications.map((a) => {
       const total = totalByApp.get(a.id) ?? 0;
       const submitted = submittedByApp.get(a.id) ?? 0;
-      const scoreCount = scoreCountByApp.get(a.id) ?? 0;
       const scoreSum = scoreSumByApp.get(a.id) ?? 0;
       const averageScore =
-        total > 0 && submitted === total && scoreCount > 0
-          ? Math.round((scoreSum / scoreCount) * 100) / 100
+        total > 0 && submitted === total
+          ? Math.round((scoreSum / total) * 100) / 100
           : null;
       return {
         id: a.id,

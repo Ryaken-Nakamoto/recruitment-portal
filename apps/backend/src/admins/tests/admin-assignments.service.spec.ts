@@ -28,6 +28,7 @@ describe('AdminAssignmentsService', () => {
     leftJoinAndSelect: jest.Mock;
     where: jest.Mock;
     andWhere: jest.Mock;
+    setParameter: jest.Mock;
     orderBy: jest.Mock;
     skip: jest.Mock;
     take: jest.Mock;
@@ -39,6 +40,7 @@ describe('AdminAssignmentsService', () => {
       leftJoinAndSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
+      setParameter: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
       skip: jest.fn().mockReturnThis(),
       take: jest.fn().mockReturnThis(),
@@ -791,10 +793,52 @@ describe('AdminAssignmentsService', () => {
           id: 10,
           round: ApplicationRound.TECHNICAL_INTERVIEW, // app has advanced
           roundStatus: RoundStatus.PENDING,
+          finalDecision: null,
         } as Application,
       } as unknown as Assignment;
       assignmentRepo.findOne.mockResolvedValue(retiredAssignment);
 
+      await expect(service.removeReviewer(3)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(assignmentRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when app has terminal decision with EMAIL_SENT', async () => {
+      const terminalAssignment = {
+        id: 3,
+        round: ApplicationRound.SCREENING,
+        recruiter: mockRecruiter,
+        application: {
+          id: 10,
+          round: ApplicationRound.SCREENING, // same round, but terminal
+          roundStatus: RoundStatus.EMAIL_SENT,
+          finalDecision: 'reject',
+        } as unknown as Application,
+      } as unknown as Assignment;
+      assignmentRepo.findOne.mockResolvedValue(terminalAssignment);
+
+      await expect(service.removeReviewer(3)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(assignmentRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('does NOT block removal when app has terminal decision but email NOT yet sent', async () => {
+      const pendingEmailAssignment = {
+        id: 3,
+        round: ApplicationRound.SCREENING,
+        recruiter: mockRecruiter,
+        application: {
+          id: 10,
+          round: ApplicationRound.SCREENING,
+          roundStatus: RoundStatus.PENDING_EMAIL,
+          finalDecision: 'reject',
+        } as unknown as Application,
+      } as unknown as Assignment;
+      assignmentRepo.findOne.mockResolvedValue(pendingEmailAssignment);
+
+      // This should throw due to the existing PENDING_EMAIL check, not the terminal-decision check
       await expect(service.removeReviewer(3)).rejects.toThrow(
         BadRequestException,
       );
@@ -925,7 +969,9 @@ describe('AdminAssignmentsService', () => {
       const result = await service.getAssignmentHistory(1, 20);
 
       expect(assignmentRepo.createQueryBuilder).toHaveBeenCalledWith('a');
-      expect(mockQb.where).toHaveBeenCalledWith('a.round != app.round');
+      expect(mockQb.where).toHaveBeenCalledWith(
+        '(a.round != app.round OR (app.finalDecision IS NOT NULL AND app.roundStatus = :emailSent))',
+      );
       expect(result.total).toBe(1);
       expect(result.totalPages).toBe(1);
       expect(result.data).toHaveLength(1);
@@ -968,6 +1014,46 @@ describe('AdminAssignmentsService', () => {
       const result = await service.getAssignmentHistory(1, 20);
 
       expect(result).toEqual({ data: [], total: 0, page: 1, totalPages: 0 });
+    });
+
+    it('uses expanded WHERE clause that includes terminal-decision apps with email sent', async () => {
+      mockQb.getManyAndCount.mockResolvedValue([[], 0]);
+
+      await service.getAssignmentHistory(1, 20);
+
+      expect(mockQb.where).toHaveBeenCalledWith(
+        '(a.round != app.round OR (app.finalDecision IS NOT NULL AND app.roundStatus = :emailSent))',
+      );
+    });
+
+    it('returns assignment for rejected app with EMAIL_SENT roundStatus', async () => {
+      const terminalAssignment = {
+        id: 7,
+        round: ApplicationRound.SCREENING,
+        assignedAt: new Date('2026-02-01'),
+        application: {
+          id: 20,
+          round: ApplicationRound.SCREENING, // same round — terminal, not advanced
+          finalDecision: 'reject',
+          roundStatus: RoundStatus.EMAIL_SENT,
+          applicant: { name: 'Eve Turner' },
+        },
+        recruiter: { id: 3, firstName: 'Frank', lastName: 'Lee' },
+      } as unknown as Assignment;
+
+      mockQb.getManyAndCount.mockResolvedValue([[terminalAssignment], 1]);
+      screeningReviewRepo.find.mockResolvedValue([]);
+
+      const result = await service.getAssignmentHistory(1, 20);
+
+      expect(result.total).toBe(1);
+      expect(result.data[0]).toMatchObject({
+        id: 7,
+        applicantName: 'Eve Turner',
+        applicationId: 20,
+        recruiterName: 'Frank Lee',
+        reviewStatus: 'not_started',
+      });
     });
   });
 

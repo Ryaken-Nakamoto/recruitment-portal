@@ -29,66 +29,21 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import apiClient from '@api/apiClient';
-import {
-  ApplicationRound,
-  RoundStatus,
-  FinalDecision,
-  AcademicYear,
-} from '@api/dtos/enums';
+import { RoundStatus } from '@api/dtos/enums';
 import {
   ApplicationListItemDto,
   BulkDecideFailure,
 } from '@api/dtos/application.dto';
-import { ApplicationRow } from '../components/ApplicationRow';
+import { ApplicationRow } from '../../components/ApplicationRow';
+import { STATUS_TABS } from './formatters';
+import { BulkActionBar } from './BulkActionBar';
 
-// Format helpers exported for testability and shared use
-export function formatRound(round: ApplicationRound): string {
-  const roundMap: Record<ApplicationRound, string> = {
-    [ApplicationRound.SCREENING]: 'Screening',
-    [ApplicationRound.TECHNICAL_INTERVIEW]: 'Technical Interview',
-    [ApplicationRound.BEHAVIORAL_INTERVIEW]: 'Behavioral Interview',
-  };
-  return roundMap[round];
-}
-
-export function formatRoundStatus(status: RoundStatus): string {
-  const statusMap: Record<RoundStatus, string> = {
-    [RoundStatus.PENDING]: 'Pending',
-    [RoundStatus.IN_PROGRESS]: 'In Progress',
-    [RoundStatus.AWAITING_ADMIN]: 'Awaiting Admin',
-    [RoundStatus.PENDING_EMAIL]: 'Pending Email',
-    [RoundStatus.EMAIL_SENT]: 'Email Sent',
-  };
-  return statusMap[status];
-}
-
-export function formatFinalDecision(decision: FinalDecision | null): string {
-  if (!decision) return '—';
-  const decisionMap: Record<FinalDecision, string> = {
-    [FinalDecision.ACCEPTED]: 'Accepted',
-    [FinalDecision.REJECTED]: 'Rejected',
-  };
-  return decisionMap[decision];
-}
-
-export function formatAcademicYear(year: AcademicYear): string {
-  const yearMap: Record<AcademicYear, string> = {
-    [AcademicYear.FIRST]: 'First',
-    [AcademicYear.SECOND]: 'Second',
-    [AcademicYear.THIRD]: 'Third',
-    [AcademicYear.FOURTH]: 'Fourth',
-    [AcademicYear.FIFTH]: 'Fifth',
-  };
-  return yearMap[year];
-}
-
-const STATUS_TABS: { label: string; value: RoundStatus }[] = [
-  { label: 'Pending', value: RoundStatus.PENDING },
-  { label: 'In Progress', value: RoundStatus.IN_PROGRESS },
-  { label: 'Awaiting Admin', value: RoundStatus.AWAITING_ADMIN },
-  { label: 'Pending Email', value: RoundStatus.PENDING_EMAIL },
-  { label: 'Final Decisions', value: RoundStatus.EMAIL_SENT },
-];
+export {
+  formatRound,
+  formatRoundStatus,
+  formatFinalDecision,
+  formatAcademicYear,
+} from './formatters';
 
 const ApplicationsPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -357,86 +312,22 @@ const ApplicationsPage: React.FC = () => {
         </>
       )}
 
-      {isAwaitingAdmin && (
-        <Box
-          sx={{
-            position: 'fixed',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            p: 2,
-            bgcolor: 'background.paper',
-            borderTop: 1,
-            borderColor: 'divider',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            zIndex: 1200,
-          }}
-        >
-          <Button
-            variant="contained"
-            color="error"
-            disabled={deciding}
-            onClick={() => handleBulkDecide('reject')}
-          >
-            Reject
-          </Button>
-          <Typography>
-            {selectedIds.size > 0
-              ? `${selectedIds.size} selected`
-              : 'No selection'}
-          </Typography>
-          <Button
-            variant="contained"
-            color="success"
-            disabled={deciding}
-            onClick={() => handleBulkDecide('advance')}
-          >
-            Advance
-          </Button>
-        </Box>
-      )}
-
-      {isPendingEmail && (
-        <Box
-          sx={{
-            position: 'fixed',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            p: 2,
-            bgcolor: 'background.paper',
-            borderTop: 1,
-            borderColor: 'divider',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            zIndex: 1200,
-          }}
-        >
-          <Button
-            variant="contained"
-            color="warning"
-            disabled={revertingEmails}
-            onClick={handleBulkRevert}
-          >
-            Move back to Pending Admin
-          </Button>
-          <Typography>
-            {selectedIds.size > 0
-              ? `${selectedIds.size} selected`
-              : 'No selection'}
-          </Typography>
-          <Button
-            variant="contained"
-            color="primary"
-            disabled={sendingEmails}
-            onClick={handleBulkSendEmails}
-          >
-            Send Emails
-          </Button>
-        </Box>
+      {(isAwaitingAdmin || isPendingEmail) && (
+        <BulkActionBar
+          mode={
+            activeStatus as
+              | RoundStatus.AWAITING_ADMIN
+              | RoundStatus.PENDING_EMAIL
+          }
+          selectedCount={selectedIds.size}
+          deciding={deciding}
+          sendingEmails={sendingEmails}
+          revertingEmails={revertingEmails}
+          onAdvance={() => handleBulkDecide('advance')}
+          onReject={() => handleBulkDecide('reject')}
+          onSendEmails={handleBulkSendEmails}
+          onRevert={handleBulkRevert}
+        />
       )}
 
       <Dialog open={decideError !== null} onClose={() => setDecideError(null)}>

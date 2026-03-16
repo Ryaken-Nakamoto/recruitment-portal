@@ -1,14 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import DetailedApplicationPage from './DetailedApplicationPage';
+import DetailedApplicationPage from '.';
 import apiClient from '@api/apiClient';
-import {
-  ApplicationRound,
-  RoundStatus,
-  FinalDecision,
-  AcademicYear,
-} from '@api/dtos/enums';
+import { ApplicationRound, RoundStatus, AcademicYear } from '@api/dtos/enums';
 import {
   FormYear,
   College,
@@ -292,9 +287,9 @@ describe('DetailedApplicationPage', () => {
       renderPage();
 
       await screen.findAllByText('Alice Smith');
-      // (2 + 3 + 1 + 2) / 4 = 2.00
+      // (2 + 3 + 1 + 2) / 2 reviewers = 4.00, out of 3 * 2 criteria = 6
       expect(await screen.findByText('Average Score')).toBeTruthy();
-      expect(screen.getByText('2.00 / 3')).toBeTruthy();
+      expect(screen.getByText('4.00 / 6')).toBeTruthy();
     });
 
     it('does not show average score when not all reviewers have submitted', async () => {

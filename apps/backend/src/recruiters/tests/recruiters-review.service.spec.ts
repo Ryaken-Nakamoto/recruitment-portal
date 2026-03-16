@@ -121,13 +121,14 @@ describe('RecruitersReviewService', () => {
   // listAssignments
   // ──────────────────────────────────────────────────────────────────────
   describe('listAssignments', () => {
-    // round on the assignment matches application.round → active assignment
+    // round on the assignment matches application.round, no terminal decision → active
     const makeAssignment = (id: number, round: ApplicationRound) => ({
       id,
-      round, // assignment's round must match app.round to appear as active
+      round,
       application: {
         id: id * 10,
         round,
+        finalDecision: null,
         applicant: { name: 'Jane Doe' },
       },
     });
@@ -136,6 +137,7 @@ describe('RecruitersReviewService', () => {
       const assignment = makeAssignment(1, ApplicationRound.SCREENING);
       assignmentRepo.findAndCount!.mockResolvedValue([[assignment], 1]);
       assignmentRepo.find!.mockResolvedValue([assignment]);
+      screeningReviewRepo.find!.mockResolvedValue([]);
       screeningReviewRepo.findOne!.mockResolvedValue(null);
       screeningReviewRepo.count!.mockResolvedValue(0);
 
@@ -151,6 +153,7 @@ describe('RecruitersReviewService', () => {
       const assignment = makeAssignment(1, ApplicationRound.SCREENING);
       assignmentRepo.findAndCount!.mockResolvedValue([[assignment], 1]);
       assignmentRepo.find!.mockResolvedValue([assignment]);
+      screeningReviewRepo.find!.mockResolvedValue([]);
       screeningReviewRepo.findOne!.mockResolvedValue(null);
       screeningReviewRepo.count!.mockResolvedValue(0);
 
@@ -161,18 +164,18 @@ describe('RecruitersReviewService', () => {
       expect(result.data[0].reviewStatus).toBe('not_started');
     });
 
-    it('returns reviewStatus "submitted" for a completed screening review', async () => {
+    it('excludes a screening assignment once its review is submitted', async () => {
       const assignment = makeAssignment(1, ApplicationRound.SCREENING);
       assignmentRepo.findAndCount!.mockResolvedValue([[assignment], 1]);
-      assignmentRepo.find!.mockResolvedValue([assignment]);
-      screeningReviewRepo.findOne!.mockResolvedValue({
-        id: 5,
-      } as unknown as ScreeningReview);
-      screeningReviewRepo.count!.mockResolvedValue(1);
+      // Batch-load returns a review for this assignment → excluded from active
+      screeningReviewRepo.find!.mockResolvedValue([
+        { assignment: { id: 1 } } as unknown as ScreeningReview,
+      ]);
 
       const result = await service.listAssignments(recruiter, 1, 20);
 
-      expect(result.data[0].reviewStatus).toBe('submitted');
+      expect(result.total).toBe(0);
+      expect(result.data).toHaveLength(0);
     });
 
     it('returns reviewStatus "draft" for an in-progress interview review', async () => {
@@ -181,6 +184,8 @@ describe('RecruitersReviewService', () => {
         ApplicationRound.TECHNICAL_INTERVIEW,
       );
       assignmentRepo.findAndCount!.mockResolvedValue([[assignment], 1]);
+      screeningReviewRepo.find!.mockResolvedValue([]);
+      // DRAFT review → assignment stays active
       interviewReviewRepo.findOne!.mockResolvedValue({
         id: 10,
         status: InterviewReviewStatus.DRAFT,
@@ -191,12 +196,14 @@ describe('RecruitersReviewService', () => {
       expect(result.data[0].reviewStatus).toBe('draft');
     });
 
-    it('returns reviewStatus "pending_approval" for a submitted interview review', async () => {
+    it('excludes assignment when interview review is PENDING_APPROVAL', async () => {
       const assignment = makeAssignment(
         1,
         ApplicationRound.BEHAVIORAL_INTERVIEW,
       );
       assignmentRepo.findAndCount!.mockResolvedValue([[assignment], 1]);
+      screeningReviewRepo.find!.mockResolvedValue([]);
+      // Non-draft review → excluded from active
       interviewReviewRepo.findOne!.mockResolvedValue({
         id: 10,
         status: InterviewReviewStatus.PENDING_APPROVAL,
@@ -204,15 +211,17 @@ describe('RecruitersReviewService', () => {
 
       const result = await service.listAssignments(recruiter, 1, 20);
 
-      expect(result.data[0].reviewStatus).toBe('pending_approval');
+      expect(result.total).toBe(0);
+      expect(result.data).toHaveLength(0);
     });
 
-    it('returns reviewStatus "approved" for an approved interview review', async () => {
+    it('excludes assignment when interview review is APPROVED', async () => {
       const assignment = makeAssignment(
         1,
         ApplicationRound.TECHNICAL_INTERVIEW,
       );
       assignmentRepo.findAndCount!.mockResolvedValue([[assignment], 1]);
+      screeningReviewRepo.find!.mockResolvedValue([]);
       interviewReviewRepo.findOne!.mockResolvedValue({
         id: 10,
         status: InterviewReviewStatus.APPROVED,
@@ -220,7 +229,28 @@ describe('RecruitersReviewService', () => {
 
       const result = await service.listAssignments(recruiter, 1, 20);
 
-      expect(result.data[0].reviewStatus).toBe('approved');
+      expect(result.total).toBe(0);
+      expect(result.data).toHaveLength(0);
+    });
+
+    it('excludes assignment when app has a terminal decision (finalDecision not null)', async () => {
+      const terminalAssignment = {
+        id: 1,
+        round: ApplicationRound.SCREENING,
+        application: {
+          id: 10,
+          round: ApplicationRound.SCREENING,
+          finalDecision: 'reject',
+          applicant: { name: 'Jane Doe' },
+        },
+      };
+      assignmentRepo.findAndCount!.mockResolvedValue([[terminalAssignment], 1]);
+      screeningReviewRepo.find!.mockResolvedValue([]);
+
+      const result = await service.listAssignments(recruiter, 1, 20);
+
+      expect(result.total).toBe(0);
+      expect(result.data).toHaveLength(0);
     });
 
     it('calculates totalPages correctly for multiple pages', async () => {
@@ -229,8 +259,8 @@ describe('RecruitersReviewService', () => {
         makeAssignment(i + 1, ApplicationRound.SCREENING),
       );
       assignmentRepo.findAndCount!.mockResolvedValue([assignments, 25]);
-      // find is called per-item for review progress calculation
       assignmentRepo.find!.mockResolvedValue([]);
+      screeningReviewRepo.find!.mockResolvedValue([]);
       screeningReviewRepo.findOne!.mockResolvedValue(null);
       screeningReviewRepo.count!.mockResolvedValue(0);
 
@@ -1129,6 +1159,7 @@ describe('RecruitersReviewService', () => {
       application: {
         id: id * 10,
         round: ApplicationRound.TECHNICAL_INTERVIEW, // current round moved on
+        finalDecision: null,
         applicant: { name: 'Jane Doe' },
       },
     });
@@ -1139,6 +1170,7 @@ describe('RecruitersReviewService', () => {
       application: {
         id: id * 10,
         round: ApplicationRound.SCREENING, // same → still active
+        finalDecision: null,
         applicant: { name: 'John Smith' },
       },
     });
@@ -1147,6 +1179,7 @@ describe('RecruitersReviewService', () => {
       const completed = makeCompletedAssignment(1);
       const active = makeActiveAssignment(2);
       assignmentRepo.findAndCount!.mockResolvedValue([[completed, active], 2]);
+      screeningReviewRepo.find!.mockResolvedValue([]);
       screeningReviewRepo.findOne!.mockResolvedValue(null);
 
       const result = await service.listCompletedAssignments(recruiter, 1, 20);
@@ -1159,6 +1192,7 @@ describe('RecruitersReviewService', () => {
     it('returns reviewStatus "submitted" when screening review exists', async () => {
       const completed = makeCompletedAssignment(1);
       assignmentRepo.findAndCount!.mockResolvedValue([[completed], 1]);
+      screeningReviewRepo.find!.mockResolvedValue([]);
       screeningReviewRepo.findOne!.mockResolvedValue({
         id: 99,
       } as unknown as ScreeningReview);
@@ -1171,6 +1205,7 @@ describe('RecruitersReviewService', () => {
     it('returns reviewStatus "not_started" when no review exists', async () => {
       const completed = makeCompletedAssignment(1);
       assignmentRepo.findAndCount!.mockResolvedValue([[completed], 1]);
+      screeningReviewRepo.find!.mockResolvedValue([]);
       screeningReviewRepo.findOne!.mockResolvedValue(null);
 
       const result = await service.listCompletedAssignments(recruiter, 1, 20);
@@ -1181,6 +1216,7 @@ describe('RecruitersReviewService', () => {
     it('returns empty data when no completed assignments exist', async () => {
       const active = makeActiveAssignment(1);
       assignmentRepo.findAndCount!.mockResolvedValue([[active], 1]);
+      screeningReviewRepo.find!.mockResolvedValue([]);
 
       const result = await service.listCompletedAssignments(recruiter, 1, 20);
 
@@ -1193,6 +1229,7 @@ describe('RecruitersReviewService', () => {
         makeCompletedAssignment(i + 1),
       );
       assignmentRepo.findAndCount!.mockResolvedValue([assignments, 3]);
+      screeningReviewRepo.find!.mockResolvedValue([]);
       screeningReviewRepo.findOne!.mockResolvedValue(null);
 
       const result = await service.listCompletedAssignments(recruiter, 2, 2);
@@ -1200,6 +1237,57 @@ describe('RecruitersReviewService', () => {
       expect(result.total).toBe(3);
       expect(result.totalPages).toBe(2);
       expect(result.data).toHaveLength(1); // page 2 of 2, only 1 item left
+    });
+
+    it('includes assignment in completed when review was submitted (same round, no terminal)', async () => {
+      const assignmentWithReview = {
+        id: 5,
+        round: ApplicationRound.SCREENING,
+        application: {
+          id: 50,
+          round: ApplicationRound.SCREENING, // same round
+          finalDecision: null,
+          applicant: { name: 'Sam Lee' },
+        },
+      };
+      assignmentRepo.findAndCount!.mockResolvedValue([
+        [assignmentWithReview],
+        1,
+      ]);
+      // Batch-load returns a review for assignment 5
+      screeningReviewRepo.find!.mockResolvedValue([
+        { assignment: { id: 5 } } as unknown as ScreeningReview,
+      ]);
+      screeningReviewRepo.findOne!.mockResolvedValue({
+        id: 10,
+      } as unknown as ScreeningReview);
+
+      const result = await service.listCompletedAssignments(recruiter, 1, 20);
+
+      expect(result.total).toBe(1);
+      expect(result.data[0].assignmentId).toBe(5);
+      expect(result.data[0].reviewStatus).toBe('submitted');
+    });
+
+    it('includes assignment in completed when app has terminal decision', async () => {
+      const terminalAssignment = {
+        id: 6,
+        round: ApplicationRound.SCREENING,
+        application: {
+          id: 60,
+          round: ApplicationRound.SCREENING, // same round
+          finalDecision: 'reject',
+          applicant: { name: 'Pat Kim' },
+        },
+      };
+      assignmentRepo.findAndCount!.mockResolvedValue([[terminalAssignment], 1]);
+      screeningReviewRepo.find!.mockResolvedValue([]);
+      screeningReviewRepo.findOne!.mockResolvedValue(null);
+
+      const result = await service.listCompletedAssignments(recruiter, 1, 20);
+
+      expect(result.total).toBe(1);
+      expect(result.data[0].assignmentId).toBe(6);
     });
   });
 
@@ -1231,6 +1319,7 @@ describe('RecruitersReviewService', () => {
           id: 100,
           round: appRound,
           roundStatus: RoundStatus.PENDING,
+          finalDecision: null,
           applicant: {
             id: 5,
             name: 'Jane Doe',
@@ -1262,8 +1351,8 @@ describe('RecruitersReviewService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('throws BadRequestException when assignment is still active', async () => {
-      // round matches appRound → still active
+    it('throws BadRequestException when assignment is still active (same round, no review, no terminal)', async () => {
+      // round matches appRound, no review, no terminal decision → still active
       const assignment = makeAssignment({
         round: ApplicationRound.SCREENING,
         appRound: ApplicationRound.SCREENING,
@@ -1271,13 +1360,52 @@ describe('RecruitersReviewService', () => {
       assignmentRepo.findOne!.mockResolvedValue(
         assignment as unknown as Assignment,
       );
+      // No review submitted
+      screeningReviewRepo.findOne!.mockResolvedValue(null);
 
       await expect(
         service.getCompletedAssignmentDetail(10, recruiter),
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('returns detail with rubricCriteria when review is submitted', async () => {
+    it('returns detail when review is submitted (same round counts as completed)', async () => {
+      // Same round, but review was submitted → allowed to view
+      const assignment = makeAssignment({
+        round: ApplicationRound.SCREENING,
+        appRound: ApplicationRound.SCREENING,
+      });
+      assignmentRepo.findOne!.mockResolvedValue(
+        assignment as unknown as Assignment,
+      );
+      screeningReviewRepo.findOne!.mockResolvedValue({
+        id: 7,
+        scores: [],
+      } as unknown as ScreeningReview);
+
+      const result = await service.getCompletedAssignmentDetail(10, recruiter);
+
+      expect(result.reviewStatus).toBe('submitted');
+    });
+
+    it('returns detail when app has terminal decision (same round counts as completed)', async () => {
+      const assignment = makeAssignment({
+        round: ApplicationRound.SCREENING,
+        appRound: ApplicationRound.SCREENING,
+      });
+      // Override finalDecision to non-null
+      (assignment.application as Record<string, unknown>).finalDecision =
+        'reject';
+      assignmentRepo.findOne!.mockResolvedValue(
+        assignment as unknown as Assignment,
+      );
+      screeningReviewRepo.findOne!.mockResolvedValue(null);
+
+      const result = await service.getCompletedAssignmentDetail(10, recruiter);
+
+      expect(result.assignmentId).toBe(10);
+    });
+
+    it('returns detail with rubricCriteria when review is submitted (round advanced)', async () => {
       const assignment = makeAssignment();
       assignmentRepo.findOne!.mockResolvedValue(
         assignment as unknown as Assignment,
@@ -1306,7 +1434,7 @@ describe('RecruitersReviewService', () => {
       expect(result.application.applicant.name).toBe('Jane Doe');
     });
 
-    it('returns detail with empty rubricCriteria when no review submitted', async () => {
+    it('returns detail with empty rubricCriteria when no review submitted (round advanced)', async () => {
       const assignment = makeAssignment();
       assignmentRepo.findOne!.mockResolvedValue(
         assignment as unknown as Assignment,

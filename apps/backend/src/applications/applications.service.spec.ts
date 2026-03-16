@@ -332,8 +332,8 @@ describe('ApplicationsService', () => {
 
       const result = await service.listAll(1, 20);
 
-      // (2 + 3 + 1 + 2) / 4 = 2.0
-      expect(result.data[0].averageScore).toBe(2);
+      // (2 + 3 + 1 + 2) / 2 recruiters = 4.0
+      expect(result.data[0].averageScore).toBe(4);
     });
 
     it('rounds averageScore to 2 decimal places', async () => {
@@ -363,8 +363,8 @@ describe('ApplicationsService', () => {
 
       const result = await service.listAll(1, 20);
 
-      // (1 + 1 + 2) / 3 = 1.33
-      expect(result.data[0].averageScore).toBe(1.33);
+      // (1 + 1 + 2) / 1 recruiter = 4.0
+      expect(result.data[0].averageScore).toBe(4);
     });
 
     it('filters by roundStatus when provided', async () => {

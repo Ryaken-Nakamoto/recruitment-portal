@@ -66,10 +66,45 @@ export class RecruitersReviewService {
       order: { assignedAt: 'DESC' },
     });
 
-    // Only show active assignments: assignment.round === application's current round
+    // Batch-load screening reviews for all assignment IDs
+    const allAssignmentIds = allAssignments.map((a) => a.id);
+    const screeningReviews =
+      allAssignmentIds.length > 0
+        ? await this.screeningReviewRepo.find({
+            where: { assignment: { id: In(allAssignmentIds) } },
+            relations: ['assignment'],
+          })
+        : [];
+    const reviewedAssignmentIds = new Set(
+      screeningReviews.map((r) => (r.assignment as Assignment).id),
+    );
+
+    // Check interview reviews (per-assignment for non-screening rounds)
+    const interviewReviewAppIds = new Set<number>();
+    for (const a of allAssignments) {
+      const app = a.application as Application;
+      if (app.round !== 'screening') {
+        const review = await this.interviewReviewRepo.findOne({
+          where: {
+            application: { id: app.id },
+            round: app.round as unknown as ApplicationRound,
+          },
+        });
+        if (review && review.status !== InterviewReviewStatus.DRAFT) {
+          interviewReviewAppIds.add(app.id);
+        }
+      }
+    }
+
+    // Only show active assignments: same round AND no review submitted AND no terminal decision
     const activeAssignments = allAssignments.filter((a) => {
       const app = a.application as Application;
-      return a.round === app.round;
+      if (a.round !== app.round || app.finalDecision !== null) return false;
+      if (app.round === 'screening' && reviewedAssignmentIds.has(a.id))
+        return false;
+      if (app.round !== 'screening' && interviewReviewAppIds.has(app.id))
+        return false;
+      return true;
     });
 
     const total = activeAssignments.length;
@@ -654,10 +689,45 @@ export class RecruitersReviewService {
       order: { assignedAt: 'DESC' },
     });
 
-    // Past-round: assignment.round !== application's current round
+    // Batch-load screening reviews for all assignment IDs
+    const allAssignmentIds = allAssignments.map((a) => a.id);
+    const screeningReviews =
+      allAssignmentIds.length > 0
+        ? await this.screeningReviewRepo.find({
+            where: { assignment: { id: In(allAssignmentIds) } },
+            relations: ['assignment'],
+          })
+        : [];
+    const reviewedAssignmentIds = new Set(
+      screeningReviews.map((r) => (r.assignment as Assignment).id),
+    );
+
+    // Check interview reviews (per-assignment for non-screening rounds)
+    const interviewReviewAppIds = new Set<number>();
+    for (const a of allAssignments) {
+      const app = a.application as Application;
+      if (app.round !== 'screening') {
+        const review = await this.interviewReviewRepo.findOne({
+          where: {
+            application: { id: app.id },
+            round: app.round as unknown as ApplicationRound,
+          },
+        });
+        if (review && review.status !== InterviewReviewStatus.DRAFT) {
+          interviewReviewAppIds.add(app.id);
+        }
+      }
+    }
+
+    // Past: round advanced, terminal decision, or review submitted
     const completedAssignments = allAssignments.filter((a) => {
       const app = a.application as Application;
-      return a.round !== app.round;
+      if (a.round !== app.round || app.finalDecision !== null) return true;
+      if (app.round === 'screening' && reviewedAssignmentIds.has(a.id))
+        return true;
+      if (app.round !== 'screening' && interviewReviewAppIds.has(app.id))
+        return true;
+      return false;
     });
 
     const total = completedAssignments.length;
@@ -713,8 +783,27 @@ export class RecruitersReviewService {
     }
 
     const app = assignment.application as Application;
-    if (assignment.round === app.round) {
-      throw new BadRequestException('Assignment is still active');
+    // Assignment is "active" only if: same round, no terminal decision, and no review submitted
+    if (assignment.round === app.round && app.finalDecision === null) {
+      const hasScreeningReview = await this.screeningReviewRepo.findOne({
+        where: { assignment: { id: assignment.id } },
+      });
+      const hasInterviewReview =
+        app.round !== 'screening'
+          ? await this.interviewReviewRepo.findOne({
+              where: {
+                application: { id: app.id },
+                round: app.round as unknown as ApplicationRound,
+              },
+            })
+          : null;
+      const reviewSubmitted =
+        !!hasScreeningReview ||
+        (hasInterviewReview !== null &&
+          hasInterviewReview?.status !== InterviewReviewStatus.DRAFT);
+      if (!reviewSubmitted) {
+        throw new BadRequestException('Assignment is still active');
+      }
     }
 
     const applicant = app.applicant as {

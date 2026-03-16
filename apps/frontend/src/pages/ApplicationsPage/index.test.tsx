@@ -6,7 +6,7 @@ import ApplicationsPage, {
   formatRoundStatus,
   formatFinalDecision,
   formatAcademicYear,
-} from './ApplicationsPage';
+} from '.';
 import {
   ApplicationRound,
   RoundStatus,
