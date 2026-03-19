@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import {
-  ConflictException,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
@@ -113,19 +112,7 @@ describe('AdminRecruitersService', () => {
   });
 
   describe('inviteRecruiter', () => {
-    it('should throw ConflictException if email already exists', async () => {
-      userRepo.findOneBy.mockResolvedValue({
-        id: 1,
-        email: 'jane@example.com',
-      } as User);
-
-      await expect(service.inviteRecruiter('jane@example.com')).rejects.toThrow(
-        ConflictException,
-      );
-    });
-
-    it('rolls back recruiter row when Cognito fails', async () => {
-      userRepo.findOneBy.mockResolvedValue(null);
+    it('rolls back recruiter row when non-UsernameExists Cognito error occurs', async () => {
       const recruiter = {
         firstName: null,
         lastName: null,
@@ -146,8 +133,33 @@ describe('AdminRecruitersService', () => {
       expect(recruiterRepo.remove).toHaveBeenCalledWith(recruiter);
     });
 
-    it('should create recruiter with null names and call cognito when email is new', async () => {
-      userRepo.findOneBy.mockResolvedValue(null);
+    it('should create recruiter even when Cognito user already exists', async () => {
+      const recruiter = {
+        firstName: null,
+        lastName: null,
+        email: 'jane@example.com',
+        accountStatus: AccountStatus.INVITE_SENT,
+      } as unknown as Recruiter;
+      recruiterRepo.create.mockReturnValue(recruiter);
+      recruiterRepo.save.mockResolvedValue(recruiter);
+      cognitoService.adminCreateUser.mockRejectedValue(
+        new Error('UsernameExistsException: Username already exists'),
+      );
+
+      const result = await service.inviteRecruiter('jane@example.com');
+
+      expect(recruiterRepo.create).toHaveBeenCalledWith({
+        firstName: null,
+        lastName: null,
+        email: 'jane@example.com',
+        accountStatus: AccountStatus.INVITE_SENT,
+      });
+      expect(recruiterRepo.save).toHaveBeenCalledWith(recruiter);
+      expect(recruiterRepo.remove).not.toHaveBeenCalled();
+      expect(result).toEqual(recruiter);
+    });
+
+    it('should create recruiter with null names and call cognito', async () => {
       const recruiter = {
         firstName: null,
         lastName: null,

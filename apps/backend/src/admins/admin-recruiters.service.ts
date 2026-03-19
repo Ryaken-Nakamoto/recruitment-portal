@@ -50,11 +50,6 @@ export class AdminRecruitersService {
   }
 
   async inviteRecruiter(email: string): Promise<Recruiter> {
-    const existing = await this.userRepo.findOneBy({ email });
-    if (existing) {
-      throw new ConflictException('A user with this email already exists');
-    }
-
     const recruiter = this.recruiterRepo.create({
       firstName: null,
       lastName: null,
@@ -66,14 +61,21 @@ export class AdminRecruitersService {
     try {
       await this.cognitoService.adminCreateUser(email);
     } catch (error) {
-      await this.recruiterRepo.remove(recruiter);
-      this.logger.error(
-        `Cognito invite failed for ${email}, rolled back DB row`,
-        error,
-      );
-      throw new InternalServerErrorException(
-        'Failed to create login credentials. Please try again.',
-      );
+      // If user already exists in Cognito, that's OK - just log it
+      if (error instanceof Error && error.message.includes('UsernameExists')) {
+        this.logger.warn(
+          `Cognito user already exists for ${email}, but added to postgres`,
+        );
+      } else {
+        await this.recruiterRepo.remove(recruiter);
+        this.logger.error(
+          `Cognito invite failed for ${email}, rolled back DB row`,
+          error,
+        );
+        throw new InternalServerErrorException(
+          'Failed to create login credentials. Please try again.',
+        );
+      }
     }
 
     return recruiter;
