@@ -25,12 +25,15 @@ import { ApplicationRound } from '../applications/enums/application-round.enum';
 import { FinalDecision } from '../applications/enums/final-decision.enum';
 import { Email } from '../emails/entities/email.entity';
 import { RawGoogleFormsService } from '../raw-google-forms/raw-google-forms.service';
-import emailTemplates from './email-templates.json';
 import { SubmitGoogleFormDto } from '../raw-google-forms/dto/submit-google-form.dto';
 import { FormYear } from '../raw-google-forms/enums/form-year.enum';
 import { College } from '../raw-google-forms/enums/college.enum';
 import { CodingExperience } from '../raw-google-forms/enums/coding-experience.enum';
 import { HearAboutC4C } from '../raw-google-forms/enums/hear-about-c4c.enum';
+
+const emailTemplates = JSON.parse(
+  fs.readFileSync(path.join(__dirname, './email-templates.json'), 'utf-8'),
+);
 
 // ─── DEV ONLY ─ remove before shipping ───────────────────────────────────────
 const MOCK_RECRUITERS: Array<{
