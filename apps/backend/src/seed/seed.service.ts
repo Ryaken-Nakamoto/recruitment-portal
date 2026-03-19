@@ -32,7 +32,10 @@ import { CodingExperience } from '../raw-google-forms/enums/coding-experience.en
 import { HearAboutC4C } from '../raw-google-forms/enums/hear-about-c4c.enum';
 
 const emailTemplates = JSON.parse(
-  fs.readFileSync(path.join(__dirname, './email-templates.json'), 'utf-8'),
+  fs.readFileSync(
+    path.join(process.cwd(), 'apps/backend/src/seed/email-templates.json'),
+    'utf-8',
+  ),
 );
 
 // ─── DEV ONLY ─ remove before shipping ───────────────────────────────────────
