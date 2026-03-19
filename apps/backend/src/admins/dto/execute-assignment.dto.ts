@@ -1,15 +1,20 @@
-import { IsArray, IsInt, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsArray, IsInt, ValidateNested, ArrayMinSize } from 'class-validator';
+
+export class AssignmentPairDto {
+  @IsInt()
+  appId: number;
+
+  @IsArray()
+  @IsInt({ each: true })
+  @ArrayMinSize(1)
+  recruiterIds: number[];
+}
 
 export class ExecuteAssignmentDto {
   @IsArray()
-  @IsInt({ each: true })
-  applicationIds: number[];
-
-  @IsArray()
-  @IsInt({ each: true })
-  recruiterIds: number[];
-
-  @IsInt()
-  @Min(1)
-  recruitersPerApp: number;
+  @ValidateNested({ each: true })
+  @Type(() => AssignmentPairDto)
+  @ArrayMinSize(1)
+  pairs: AssignmentPairDto[];
 }

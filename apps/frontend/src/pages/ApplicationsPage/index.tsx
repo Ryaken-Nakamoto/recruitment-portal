@@ -23,6 +23,7 @@ import {
   TableRow,
   TableSortLabel,
   Tabs,
+  TextField,
   Typography,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -58,6 +59,9 @@ const ApplicationsPage: React.FC = () => {
     null,
   );
   const [noSelectionError, setNoSelectionError] = useState(false);
+  const [selectTopInput, setSelectTopInput] = useState('');
+  const [selectTopError, setSelectTopError] = useState<string | null>(null);
+  const [selectingTop, setSelectingTop] = useState(false);
   const [deciding, setDeciding] = useState(false);
   const [sendingEmails, setSendingEmails] = useState(false);
   const [revertingEmails, setRevertingEmails] = useState(false);
@@ -89,6 +93,35 @@ const ApplicationsPage: React.FC = () => {
     setPage(1);
     setSelectedIds(new Set());
     setAvgScoreSort('desc');
+    setSelectTopInput('');
+    setSelectTopError(null);
+  }
+
+  async function handleSelectTop() {
+    const k = parseInt(selectTopInput, 10);
+    const total = data?.total ?? 0;
+    if (isNaN(k) || k <= 0) {
+      setSelectTopError('Must be a positive number');
+      return;
+    }
+    if (k > total) {
+      setSelectTopError(`Must be ≤ ${total} (total awaiting admin apps)`);
+      return;
+    }
+    setSelectTopError(null);
+    setSelectingTop(true);
+    try {
+      const result = await apiClient.getApplications(
+        1,
+        k,
+        RoundStatus.AWAITING_ADMIN,
+        'desc',
+      );
+      setSelectedIds(new Set(result.data.map((a) => a.id)));
+      setAvgScoreSort('desc');
+    } finally {
+      setSelectingTop(false);
+    }
   }
 
   function toggleSort() {
@@ -220,6 +253,29 @@ const ApplicationsPage: React.FC = () => {
           <Tab key={tab.value} label={tab.label} value={tab.value} />
         ))}
       </Tabs>
+
+      {isAwaitingAdmin && (
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+          <TextField
+            label="Select Top:"
+            size="small"
+            type="number"
+            value={selectTopInput}
+            onChange={(e) => {
+              setSelectTopInput(e.target.value);
+              setSelectTopError(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSelectTop();
+            }}
+            disabled={selectingTop || !data}
+            error={!!selectTopError}
+            helperText={selectTopError ?? ' '}
+            slotProps={{ htmlInput: { min: 1 } }}
+            sx={{ width: 160 }}
+          />
+        </Box>
+      )}
 
       {isLoading && (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>

@@ -6,6 +6,7 @@ import {
   Button,
   Chip,
   CircularProgress,
+  IconButton,
   Pagination,
   Tab,
   Table,
@@ -16,6 +17,7 @@ import {
   Tabs,
   Typography,
 } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useQuery } from '@tanstack/react-query';
 import { signOut } from 'aws-amplify/auth';
@@ -151,6 +153,24 @@ const RecruiterHomePage: React.FC = () => {
       </Box>
 
       <Box sx={{ p: 4 }}>
+        <Box sx={{ mb: 2 }}>
+          <IconButton
+            onClick={() => navigate('/recruiter/home')}
+            sx={{ mr: 1 }}
+            aria-label="back"
+          >
+            <ArrowBackIcon />
+          </IconButton>
+          <Typography
+            variant="caption"
+            component="span"
+            sx={{ cursor: 'pointer' }}
+            onClick={() => navigate('/recruiter/home')}
+          >
+            Back to Home
+          </Typography>
+        </Box>
+
         <Typography variant="h5" fontWeight="bold" mb={2}>
           My Assignments
         </Typography>

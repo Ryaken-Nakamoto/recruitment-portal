@@ -18,25 +18,19 @@ interface InviteRecruiterModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: (email: string) => void;
-  onError: () => void;
+  onError: (message: string) => void;
 }
 
 interface FormValues {
-  firstName: string;
-  lastName: string;
   email: string;
 }
 
 interface FormErrors {
-  firstName?: string;
-  lastName?: string;
   email?: string;
 }
 
 export function validate(values: FormValues): FormErrors {
   const errors: FormErrors = {};
-  if (!values.firstName.trim()) errors.firstName = 'First name is required';
-  if (!values.lastName.trim()) errors.lastName = 'Last name is required';
   if (!values.email.trim()) {
     errors.email = 'Email is required';
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
@@ -51,11 +45,7 @@ const InviteRecruiterModal: React.FC<InviteRecruiterModalProps> = ({
   onSuccess,
   onError,
 }) => {
-  const [values, setValues] = useState<FormValues>({
-    firstName: '',
-    lastName: '',
-    email: '',
-  });
+  const [values, setValues] = useState<FormValues>({ email: '' });
   const [touched, setTouched] = useState<
     Partial<Record<keyof FormValues, boolean>>
   >({});
@@ -74,21 +64,25 @@ const InviteRecruiterModal: React.FC<InviteRecruiterModalProps> = ({
       if (axios.isAxiosError(err) && err.response?.status === 409) {
         setConflictError(true);
       } else {
-        onError();
+        const message =
+          axios.isAxiosError(err) && err.response?.data?.message
+            ? err.response.data.message
+            : 'Failed to send invite. Please try again.';
+        onError(message);
         handleClose();
       }
     },
   });
 
   const handleClose = () => {
-    setValues({ firstName: '', lastName: '', email: '' });
+    setValues({ email: '' });
     setTouched({});
     setConflictError(false);
     onClose();
   };
 
   const handleSubmit = () => {
-    setTouched({ firstName: true, lastName: true, email: true });
+    setTouched({ email: true });
     if (!isValid) return;
     setConflictError(false);
     mutate();
@@ -115,26 +109,6 @@ const InviteRecruiterModal: React.FC<InviteRecruiterModalProps> = ({
             A recruiter with this email already exists
           </Alert>
         )}
-        <TextField
-          label="First Name"
-          value={values.firstName}
-          onChange={handleChange('firstName')}
-          onBlur={handleBlur('firstName')}
-          error={touched.firstName && !!errors.firstName}
-          helperText={touched.firstName ? errors.firstName : ''}
-          required
-          fullWidth
-        />
-        <TextField
-          label="Last Name"
-          value={values.lastName}
-          onChange={handleChange('lastName')}
-          onBlur={handleBlur('lastName')}
-          error={touched.lastName && !!errors.lastName}
-          helperText={touched.lastName ? errors.lastName : ''}
-          required
-          fullWidth
-        />
         <TextField
           label="Email"
           type="email"

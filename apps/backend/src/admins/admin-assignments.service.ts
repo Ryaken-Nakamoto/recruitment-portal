@@ -15,6 +15,7 @@ import { ScreeningReviewScore } from '../applications/entities/screening-review-
 import { ScreeningCriteria } from '../rubrics/entities/screening-criteria.entity';
 import { ApplicationRound } from '../applications/enums/application-round.enum';
 import { RoundStatus } from '../applications/enums/round-status.enum';
+import { ScreeningReviewStatus } from '../applications/enums/screening-review-status.enum';
 import { Applicant } from '../applicants/entities/applicant.entity';
 import { Recruiter } from '../recruiters/entities/recruiter.entity';
 import { AccountStatus } from '../users/status';
@@ -35,13 +36,17 @@ export class AdminAssignmentsService {
   ) {}
 
   async listApplicationsByRound(round?: ApplicationRound) {
-    const where = round ? { round } : {};
+    const where = round
+      ? { round, roundStatus: RoundStatus.PENDING }
+      : { roundStatus: RoundStatus.PENDING };
     const apps = await this.applicationRepo.find({
       where,
       relations: ['applicant'],
     });
     this.logger.log(
-      `Listed ${apps.length} applications${round ? ` for round ${round}` : ''}`,
+      `Listed ${apps.length} PENDING applications${
+        round ? ` for round ${round}` : ''
+      }`,
     );
     return apps.map((a) => ({
       id: a.id,
@@ -66,59 +71,53 @@ export class AdminAssignmentsService {
   }
 
   async assignRecruiters(
-    applicationIds: number[],
-    recruiterIds: number[],
-    recruitersPerApp: number,
+    pairs: { appId: number; recruiterIds: number[] }[],
   ): Promise<{
     assigned: number;
     skippedApps: { appId: number; existingRecruiters: string[] }[];
   }> {
-    if (applicationIds.length === 0) {
-      throw new BadRequestException('applicationIds must not be empty');
-    }
-    if (recruiterIds.length === 0) {
-      throw new BadRequestException('recruiterIds must not be empty');
-    }
-    if (recruitersPerApp < 1) {
-      throw new BadRequestException('recruitersPerApp must be at least 1');
-    }
-    if (recruitersPerApp > recruiterIds.length) {
-      throw new BadRequestException('Not enough recruiters selected');
+    if (pairs.length === 0) {
+      throw new BadRequestException('pairs must not be empty');
     }
 
+    // Extract all unique app and recruiter IDs
+    const allAppIds = [...new Set(pairs.map((p) => p.appId))];
+    const allRecruiterIds = [...new Set(pairs.flatMap((p) => p.recruiterIds))];
+
+    // Fetch and validate all recruiters
     const recruiters = await this.recruiterRepo.findBy({
-      id: In(recruiterIds),
+      id: In(allRecruiterIds),
     });
-    if (recruiters.length !== recruiterIds.length) {
+    if (recruiters.length !== allRecruiterIds.length) {
       throw new NotFoundException('One or more recruiter IDs not found');
     }
+    const recruiterMap = new Map(recruiters.map((r) => [r.id, r]));
 
+    // Fetch and validate all applications
     const applications = await this.applicationRepo.findBy({
-      id: In(applicationIds),
+      id: In(allAppIds),
     });
-    if (applications.length !== applicationIds.length) {
+    if (applications.length !== allAppIds.length) {
       throw new NotFoundException('One or more application IDs not found');
     }
 
-    // Hard deny: reject if any selected app has a closed recruitment window
+    // Hard deny: reject if any selected app is not in PENDING status
     const blockedIds = applications
-      .filter(
-        (a) =>
-          a.roundStatus === RoundStatus.PENDING_EMAIL ||
-          a.roundStatus === RoundStatus.EMAIL_SENT,
-      )
+      .filter((a) => a.roundStatus !== RoundStatus.PENDING)
       .map((a) => a.id);
     if (blockedIds.length > 0) {
       throw new BadRequestException({
         message:
-          'Cannot assign reviewers: some applications have a closed recruitment window.',
+          'Cannot bulk-assign reviewers: all selected applications must be in PENDING status.',
         blockedAppIds: blockedIds,
       });
     }
 
+    const appMap = new Map(applications.map((a) => [a.id, a]));
+
     // Load existing assignments to skip duplicates within the same round
     const existingAssignments = await this.assignmentRepo.find({
-      where: { application: { id: In(applicationIds) } },
+      where: { application: { id: In(allAppIds) } },
       relations: ['recruiter', 'application'],
     });
     const existingPairs = new Set(
@@ -140,41 +139,37 @@ export class AdminAssignmentsService {
       existingRecruitersByApp.set(appId, entry);
     }
 
-    // Round-robin assignment — skip pairs that already exist in the same round
-    const K = recruiters.length;
+    // Process each pair and create assignments
     let assigned = 0;
     const appsWithNewAssignments = new Set<number>();
     const skippedAppMap = new Map<number, string[]>();
 
-    for (let i = 0; i < applications.length; i++) {
-      for (let j = 0; j < recruitersPerApp; j++) {
-        const recruiter = recruiters[(i * recruitersPerApp + j) % K];
-        const key = `${applications[i].id}:${recruiter.id}:${applications[i].round}`;
+    for (const pair of pairs) {
+      const app = appMap.get(pair.appId)!;
+      for (const recruiterId of pair.recruiterIds) {
+        const recruiter = recruiterMap.get(recruiterId)!;
+        const key = `${app.id}:${recruiter.id}:${app.round}`;
         if (existingPairs.has(key)) {
-          skippedAppMap.set(
-            applications[i].id,
-            existingRecruitersByApp.get(applications[i].id) ?? [],
-          );
+          skippedAppMap.set(app.id, existingRecruitersByApp.get(app.id) ?? []);
           continue;
         }
 
         const assignment = this.assignmentRepo.create({
           recruiter,
-          application: applications[i],
-          round: applications[i].round,
+          application: app,
+          round: app.round,
         });
         await this.assignmentRepo.save(assignment);
-        appsWithNewAssignments.add(applications[i].id);
+        appsWithNewAssignments.add(app.id);
         assigned++;
       }
     }
 
-    // For apps that received new assignments, reset PENDING/AWAITING_ADMIN → IN_PROGRESS
+    // For apps that received new assignments, transition PENDING → IN_PROGRESS
     const appsToUpdate = applications.filter(
       (a) =>
         appsWithNewAssignments.has(a.id) &&
-        (a.roundStatus === RoundStatus.PENDING ||
-          a.roundStatus === RoundStatus.AWAITING_ADMIN),
+        a.roundStatus === RoundStatus.PENDING,
     );
     if (appsToUpdate.length > 0) {
       await this.applicationRepo.update(
@@ -184,7 +179,7 @@ export class AdminAssignmentsService {
     }
 
     this.logger.log(
-      `Added ${assigned} new assignments across ${applications.length} applications (${skippedAppMap.size} apps had duplicates skipped)`,
+      `Added ${assigned} new assignments across ${pairs.length} pairs (${skippedAppMap.size} apps had duplicates skipped)`,
     );
     return {
       assigned,
@@ -241,10 +236,14 @@ export class AdminAssignmentsService {
       }
 
       const scores = review.scores as ScreeningReviewScore[];
+      const reviewStatus =
+        review.status === ScreeningReviewStatus.SUBMITTED
+          ? ('submitted' as const)
+          : ('draft' as const);
       return {
         assignmentId: a.id,
         recruiterName,
-        reviewStatus: 'submitted' as const,
+        reviewStatus,
         notes: a.notes,
         rubricCriteria: scores.map((s) => {
           const criteria = s.criteria as ScreeningCriteria;
@@ -286,8 +285,15 @@ export class AdminAssignmentsService {
             relations: ['assignment'],
           })
         : [];
-    const reviewedIds = new Set(
-      reviews.map((r) => (r.assignment as Assignment).id),
+    const submittedIds = new Set(
+      reviews
+        .filter((r) => r.status === ScreeningReviewStatus.SUBMITTED)
+        .map((r) => (r.assignment as Assignment).id),
+    );
+    const draftIds = new Set(
+      reviews
+        .filter((r) => r.status === ScreeningReviewStatus.DRAFT)
+        .map((r) => (r.assignment as Assignment).id),
     );
 
     return assignments.map((a) => ({
@@ -296,7 +302,11 @@ export class AdminAssignmentsService {
       recruiterName: `${(a.recruiter as Recruiter).firstName} ${
         (a.recruiter as Recruiter).lastName
       }`,
-      reviewStatus: reviewedIds.has(a.id) ? 'submitted' : 'not_started',
+      reviewStatus: submittedIds.has(a.id)
+        ? 'submitted'
+        : draftIds.has(a.id)
+        ? 'draft'
+        : 'not_started',
     }));
   }
 
@@ -431,7 +441,10 @@ export class AdminAssignmentsService {
       newStatus = RoundStatus.PENDING;
     } else {
       const reviewedCount = await this.screeningReviewRepo.count({
-        where: { assignment: { id: In(remaining.map((a) => a.id)) } },
+        where: {
+          assignment: { id: In(remaining.map((a) => a.id)) },
+          status: ScreeningReviewStatus.SUBMITTED,
+        },
       });
       newStatus =
         reviewedCount === remaining.length

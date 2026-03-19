@@ -30,8 +30,12 @@ import ClearIcon from '@mui/icons-material/Clear';
 import { useMutation, useQuery } from '@tanstack/react-query';
 
 import apiClient from '@api/apiClient';
-import { ApplicationRound, RoundStatus } from '@api/dtos/enums';
-import { ExecuteAssignmentRequest } from '@api/dtos/assignment.dto';
+import { ApplicationRound } from '@api/dtos/enums';
+import {
+  ExecuteAssignmentRequest,
+  RecruiterSummaryDto,
+} from '@api/dtos/assignment.dto';
+import { ApplicationSummaryDto } from '@api/dtos/application.dto';
 
 type SnackbarState = {
   open: boolean;
@@ -39,23 +43,158 @@ type SnackbarState = {
   severity: 'success' | 'error';
 };
 
-type AppSummary = { id: number; name: string };
+type PreviewRow = {
+  appId: number;
+  appName: string;
+  recruiterSlots: number[];
+};
+
+/** Compute C(n, r) — number of combinations */
+export function comb(n: number, r: number): number {
+  if (r > n || r < 0) return 0;
+  if (r === 0 || r === n) return 1;
+  let result = 1;
+  for (let i = 0; i < r; i++) {
+    result = (result * (n - i)) / (i + 1);
+  }
+  return result;
+}
+
+/** Generate all r-combinations of an array */
+export function* combinations<T>(arr: T[], r: number): Generator<T[]> {
+  const n = arr.length;
+  if (r > n || r < 0) {
+    return;
+  }
+  if (r === 0) {
+    yield [];
+    return;
+  }
+  if (r === 1) {
+    for (const x of arr) yield [x];
+    return;
+  }
+  const [first, ...rest] = arr;
+  // Yield combinations that include first
+  for (const combo of combinations(rest, r - 1)) {
+    yield [first, ...combo];
+  }
+  // Yield combinations that don't include first
+  yield* combinations(rest, r);
+}
+
+export function computePreview(
+  selectedAppsList: ApplicationSummaryDto[],
+  selectedRecruitersList: RecruiterSummaryDto[],
+  perApp: number,
+): PreviewRow[] {
+  const K = selectedRecruitersList.length;
+  const recruiterIds = selectedRecruitersList.map((r) => r.id);
+
+  // If perApp === 1, use simple round-robin (no pairing to optimize)
+  if (perApp === 1) {
+    return selectedAppsList.map((app, i) => ({
+      appId: app.id,
+      appName: app.applicant.name,
+      recruiterSlots: [recruiterIds[i % K]],
+    }));
+  }
+
+  // Check if exhaustive search is feasible
+  const totalCombos = comb(K, perApp);
+  if (totalCombos > 10000) {
+    // Fall back to round-robin
+    return selectedAppsList.map((app, i) => ({
+      appId: app.id,
+      appName: app.applicant.name,
+      recruiterSlots: Array.from({ length: perApp }, (_, j) => {
+        return recruiterIds[(i * perApp + j) % K];
+      }),
+    }));
+  }
+
+  // Exhaustive optimization: for each app, pick the subset with fewest repeated pairs
+  const pairCount = new Map<string, number>();
+  const result: PreviewRow[] = [];
+
+  for (const app of selectedAppsList) {
+    let bestSubset: number[] | null = null;
+    let bestScore = Infinity;
+
+    for (const subset of combinations(recruiterIds, perApp)) {
+      // Score this subset by counting existing pairs
+      let score = 0;
+      for (let i = 0; i < subset.length; i++) {
+        for (let j = i + 1; j < subset.length; j++) {
+          const pairKey = [subset[i], subset[j]].sort().join(':');
+          score += pairCount.get(pairKey) ?? 0;
+        }
+      }
+
+      if (score < bestScore) {
+        bestScore = score;
+        bestSubset = subset;
+      }
+    }
+
+    // Record the chosen subset
+    if (bestSubset) {
+      for (let i = 0; i < bestSubset.length; i++) {
+        for (let j = i + 1; j < bestSubset.length; j++) {
+          const pairKey = [bestSubset[i], bestSubset[j]].sort().join(':');
+          pairCount.set(pairKey, (pairCount.get(pairKey) ?? 0) + 1);
+        }
+      }
+      result.push({
+        appId: app.id,
+        appName: app.applicant.name,
+        recruiterSlots: bestSubset,
+      });
+    }
+  }
+
+  return result;
+}
+
+export function detectRepeatedPairings(
+  rows: PreviewRow[],
+  recruiterMap: Map<number, string>,
+): string[] {
+  const pairCounts = new Map<string, number>();
+
+  for (const row of rows) {
+    const recruiterSlots = row.recruiterSlots;
+    for (let i = 0; i < recruiterSlots.length; i++) {
+      for (let j = i + 1; j < recruiterSlots.length; j++) {
+        const pairKey = [recruiterSlots[i], recruiterSlots[j]].sort().join(':');
+        pairCounts.set(pairKey, (pairCounts.get(pairKey) ?? 0) + 1);
+      }
+    }
+  }
+
+  const repeatedPairs: string[] = [];
+  for (const [pairKey, count] of pairCounts.entries()) {
+    if (count > 1) {
+      const [id1, id2] = pairKey.split(':').map(Number);
+      const name1 = recruiterMap.get(id1) ?? `#${id1}`;
+      const name2 = recruiterMap.get(id2) ?? `#${id2}`;
+      repeatedPairs.push(`${name1} & ${name2}`);
+    }
+  }
+
+  return repeatedPairs;
+}
+
 type SkippedAppInfo = {
   id: number;
   name: string;
   existingRecruiters: string[];
 };
-type BlockedAppInfo = { id: number; name: string; roundStatus: RoundStatus };
 
 const ROUND_LABELS: Record<ApplicationRound, string> = {
   [ApplicationRound.SCREENING]: 'Screening',
   [ApplicationRound.TECHNICAL_INTERVIEW]: 'Technical Interview',
   [ApplicationRound.BEHAVIORAL_INTERVIEW]: 'Behavioral Interview',
-};
-
-const STATUS_LABELS: Partial<Record<RoundStatus, string>> = {
-  [RoundStatus.PENDING_EMAIL]: 'Pending Email',
-  [RoundStatus.EMAIL_SENT]: 'Email Sent',
 };
 
 const AssignmentPage: React.FC = () => {
@@ -76,13 +215,11 @@ const AssignmentPage: React.FC = () => {
     message: '',
     severity: 'success',
   });
-
-  // Dialog state
-  const [blockedApps, setBlockedApps] = useState<BlockedAppInfo[]>([]);
-  const [awaitingApps, setAwaitingApps] = useState<AppSummary[]>([]);
-  const [pendingRequest, setPendingRequest] =
-    useState<ExecuteAssignmentRequest | null>(null);
   const [skippedApps, setSkippedApps] = useState<SkippedAppInfo[]>([]);
+  const [previewRows, setPreviewRows] = useState<PreviewRow[] | null>(null);
+  const [recruiterNameMap, setRecruiterNameMap] = useState<Map<number, string>>(
+    new Map(),
+  );
 
   const fuzzyMatch = (query: string, target: string): boolean => {
     if (!query) return true;
@@ -151,12 +288,6 @@ const AssignmentPage: React.FC = () => {
     fuzzyMatch(recruiterSearch, `${r.firstName} ${r.lastName}`),
   );
 
-  const buildRequest = (): ExecuteAssignmentRequest => ({
-    applicationIds: Array.from(selectedApps),
-    recruiterIds: Array.from(selectedRecruiters),
-    recruitersPerApp,
-  });
-
   const handleExecute = () => {
     setValidationError(null);
     setSkippedApps([]);
@@ -180,45 +311,57 @@ const AssignmentPage: React.FC = () => {
       return;
     }
 
-    const selectedAppObjects = (applications ?? []).filter((a) =>
-      selectedApps.has(a.id),
+    const appsList = Array.from(selectedApps).map(
+      (id) => applications!.find((a) => a.id === id)!,
+    );
+    const recruitersList = Array.from(selectedRecruiters).map(
+      (id) => recruiters!.find((r) => r.id === id)!,
     );
 
-    // Hard deny: PENDING_EMAIL or EMAIL_SENT
-    const blocked = selectedAppObjects
-      .filter(
-        (a) =>
-          a.roundStatus === RoundStatus.PENDING_EMAIL ||
-          a.roundStatus === RoundStatus.EMAIL_SENT,
-      )
-      .map((a) => ({
-        id: a.id,
-        name: a.applicant.name,
-        roundStatus: a.roundStatus,
-      }));
-    if (blocked.length > 0) {
-      setBlockedApps(blocked);
-      return;
-    }
+    // Build recruiter name map for later use
+    const nameMap = new Map(
+      recruitersList.map((r) => [r.id, `${r.firstName} ${r.lastName}`]),
+    );
+    setRecruiterNameMap(nameMap);
 
-    // Confirmation required: AWAITING_ADMIN
-    const awaiting = selectedAppObjects
-      .filter((a) => a.roundStatus === RoundStatus.AWAITING_ADMIN)
-      .map((a) => ({ id: a.id, name: a.applicant.name }));
-    if (awaiting.length > 0) {
-      setAwaitingApps(awaiting);
-      setPendingRequest(buildRequest());
-      return;
-    }
-
-    executeAssignment(buildRequest());
+    setPreviewRows(computePreview(appsList, recruitersList, recruitersPerApp));
   };
 
-  const handleConfirmAwaiting = () => {
-    if (pendingRequest) executeAssignment(pendingRequest);
-    setAwaitingApps([]);
-    setPendingRequest(null);
+  const handleSlotChange = (
+    rowIndex: number,
+    slotIndex: number,
+    recruiterId: number,
+  ) => {
+    setPreviewRows((prev) =>
+      prev!.map((row, i) =>
+        i === rowIndex
+          ? {
+              ...row,
+              recruiterSlots: row.recruiterSlots.map((id, j) =>
+                j === slotIndex ? recruiterId : id,
+              ),
+            }
+          : row,
+      ),
+    );
   };
+
+  const handleConfirmPreview = () => {
+    if (!previewRows) return;
+
+    setPreviewRows(null);
+    executeAssignment({
+      pairs: previewRows.map((row) => ({
+        appId: row.appId,
+        recruiterIds: row.recruiterSlots,
+      })),
+    });
+  };
+
+  const repeatedPairings =
+    previewRows && recruiters
+      ? detectRepeatedPairings(previewRows, recruiterNameMap)
+      : [];
 
   const toggleApp = (id: number) => {
     setSelectedApps((prev) => {
@@ -303,9 +446,10 @@ const AssignmentPage: React.FC = () => {
         Assign Recruiters
       </Typography>
       <Alert severity="info" sx={{ mb: 3 }}>
-        Assignments are <strong>additive</strong> — existing assignments are
-        kept. Recruiters already assigned to an application are skipped; only
-        new pairs are created.
+        Only <strong>unassigned (Pending)</strong> applications are shown. To
+        add reviewers to an application already in progress, use its detail
+        page. Assignments are <strong>additive</strong> — selecting an
+        application and clicking Execute will not remove existing reviewers.
       </Alert>
 
       <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
@@ -578,67 +722,70 @@ const AssignmentPage: React.FC = () => {
         </Box>
       </Box>
 
-      {/* Hard deny: PENDING_EMAIL / EMAIL_SENT */}
-      <Dialog open={blockedApps.length > 0} onClose={() => setBlockedApps([])}>
-        <DialogTitle>Cannot Assign Reviewers</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            The following applications have already had emails sent and their
-            recruitment window is closed. Remove them from your selection before
-            proceeding.
-          </DialogContentText>
-          <List dense disablePadding sx={{ mt: 1 }}>
-            {blockedApps.map((a) => (
-              <ListItem key={a.id} disableGutters>
-                <ListItemText
-                  primary={a.name}
-                  secondary={STATUS_LABELS[a.roundStatus]}
-                />
-              </ListItem>
-            ))}
-          </List>
-        </DialogContent>
-        <DialogActions>
-          <Button variant="contained" onClick={() => setBlockedApps([])}>
-            OK
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Confirmation: AWAITING_ADMIN */}
       <Dialog
-        open={awaitingApps.length > 0}
-        onClose={() => {
-          setAwaitingApps([]);
-          setPendingRequest(null);
-        }}
+        open={previewRows !== null}
+        onClose={() => setPreviewRows(null)}
+        maxWidth="md"
+        fullWidth
       >
-        <DialogTitle>Status Will Reset</DialogTitle>
+        <DialogTitle>Preview Assignments</DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            The following applications are currently awaiting an admin decision.
-            Adding a reviewer will reset their status back to{' '}
-            <strong>In Progress</strong>. No existing reviews will be deleted.
+          <DialogContentText sx={{ mb: 2 }}>
+            {previewRows?.length ?? 0} application
+            {previewRows?.length !== 1 ? 's' : ''} will each receive{' '}
+            {recruitersPerApp} recruiter
+            {recruitersPerApp !== 1 ? 's' : ''} (
+            {(previewRows?.length ?? 0) * recruitersPerApp} total assignments).
+            Edit assignments below and confirm to execute.
           </DialogContentText>
-          <List dense disablePadding sx={{ mt: 1 }}>
-            {awaitingApps.map((a) => (
-              <ListItem key={a.id} disableGutters>
-                <ListItemText primary={a.name} />
+
+          {repeatedPairings.length > 0 && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              {repeatedPairings.length} recruiter pair
+              {repeatedPairings.length !== 1 ? 's' : ''} will be assigned
+              together more than once: {repeatedPairings.join(', ')}. You can
+              edit the assignments below.
+            </Alert>
+          )}
+
+          <List dense disablePadding>
+            {(previewRows ?? []).map((row, i) => (
+              <ListItem
+                key={i}
+                disableGutters
+                sx={{ gap: 1, flexWrap: 'wrap', mb: 1 }}
+              >
+                <ListItemText
+                  primary={row.appName}
+                  sx={{ minWidth: 150, flex: '0 0 auto' }}
+                />
+                {row.recruiterSlots.map((recruiterId, slot) => (
+                  <Select
+                    key={slot}
+                    size="small"
+                    value={recruiterId}
+                    onChange={(e) =>
+                      handleSlotChange(i, slot, Number(e.target.value))
+                    }
+                    sx={{ minWidth: 140 }}
+                  >
+                    {(recruiters ?? [])
+                      .filter((r) => selectedRecruiters.has(r.id))
+                      .map((r) => (
+                        <MenuItem key={r.id} value={r.id}>
+                          {r.firstName} {r.lastName}
+                        </MenuItem>
+                      ))}
+                  </Select>
+                ))}
               </ListItem>
             ))}
           </List>
         </DialogContent>
         <DialogActions>
-          <Button
-            onClick={() => {
-              setAwaitingApps([]);
-              setPendingRequest(null);
-            }}
-          >
-            Cancel
-          </Button>
-          <Button variant="contained" onClick={handleConfirmAwaiting}>
-            Confirm
+          <Button onClick={() => setPreviewRows(null)}>Cancel</Button>
+          <Button variant="contained" onClick={handleConfirmPreview}>
+            Confirm & Execute
           </Button>
         </DialogActions>
       </Dialog>

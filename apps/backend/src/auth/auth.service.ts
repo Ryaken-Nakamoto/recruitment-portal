@@ -58,11 +58,6 @@ export class AuthService {
       throw new UnauthorizedException('Account is deactivated');
     }
 
-    if (user.accountStatus === AccountStatus.INVITE_SENT) {
-      user.accountStatus = AccountStatus.ACTIVATED;
-      await this.userRepo.save(user);
-    }
-
     return user;
   }
 }

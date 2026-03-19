@@ -41,11 +41,7 @@ export class AdminAssignmentsController {
   @Post('execute')
   @Auth(Role.ADMIN)
   executeAssignment(@Body() dto: ExecuteAssignmentDto) {
-    return this.adminAssignmentsService.assignRecruiters(
-      dto.applicationIds,
-      dto.recruiterIds,
-      dto.recruitersPerApp,
-    );
+    return this.adminAssignmentsService.assignRecruiters(dto.pairs);
   }
 
   @Get('application/:applicationId/reviews')

@@ -38,18 +38,12 @@ describe('AdminRecruitersController', () => {
   });
 
   describe('inviteRecruiter', () => {
-    it('should call service.inviteRecruiter with dto fields', () => {
+    it('should call service.inviteRecruiter with email only', () => {
       const dto: InviteRecruiterDto = {
-        firstName: 'Jane',
-        lastName: 'Doe',
         email: 'jane@example.com',
       };
       controller.inviteRecruiter(dto);
-      expect(service.inviteRecruiter).toHaveBeenCalledWith(
-        'Jane',
-        'Doe',
-        'jane@example.com',
-      );
+      expect(service.inviteRecruiter).toHaveBeenCalledWith('jane@example.com');
     });
   });
 

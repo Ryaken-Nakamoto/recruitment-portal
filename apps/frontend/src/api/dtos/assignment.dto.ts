@@ -26,10 +26,13 @@ export interface RecruiterSummaryDto {
   lastName: string;
 }
 
-export interface ExecuteAssignmentRequest {
-  applicationIds: number[];
+export interface AssignmentPair {
+  appId: number;
   recruiterIds: number[];
-  recruitersPerApp: number;
+}
+
+export interface ExecuteAssignmentRequest {
+  pairs: AssignmentPair[];
 }
 
 export interface ExecuteAssignmentResponse {
@@ -76,6 +79,7 @@ export interface AssignmentDetailCriteria {
 export interface AssignmentDetailResponse {
   assignmentId: number;
   notes: string | null;
+  reviewId: number | null;
   application: {
     id: number;
     applicantName: string;
@@ -90,7 +94,7 @@ export interface AssignmentDetailResponse {
     teamConflict: string;
     otherExperiences: string;
   };
-  reviewStatus: 'not_started' | 'submitted';
+  reviewStatus: 'not_started' | 'draft' | 'submitted';
   rubricCriteria: AssignmentDetailCriteria[];
 }
 
@@ -98,7 +102,7 @@ export interface AssignmentReviewerInfo {
   assignmentId: number;
   recruiterId: number;
   recruiterName: string;
-  reviewStatus: 'not_started' | 'submitted';
+  reviewStatus: 'not_started' | 'draft' | 'submitted';
 }
 
 export interface RecruiterDetailAssignment {
@@ -114,15 +118,15 @@ export interface RecruiterDetailAssignment {
 export interface AdminApplicationReview {
   assignmentId: number;
   recruiterName: string;
-  reviewStatus: 'not_started' | 'submitted';
+  reviewStatus: 'not_started' | 'draft' | 'submitted';
   notes: string | null;
   rubricCriteria: AssignmentDetailCriteria[];
 }
 
 export interface RecruiterDetailResponse {
   id: number;
-  firstName: string;
-  lastName: string;
+  firstName: string | null;
+  lastName: string | null;
   email: string;
   accountStatus: string;
   createdDate: string;

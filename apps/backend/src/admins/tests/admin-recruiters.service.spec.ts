@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Repository } from 'typeorm';
 
 import { AdminRecruitersService } from '../admin-recruiters.service';
@@ -30,6 +34,7 @@ describe('AdminRecruitersService', () => {
       findOneBy: jest.fn(),
       create: jest.fn(),
       save: jest.fn(),
+      remove: jest.fn(),
     };
 
     const mockUserRepo = {
@@ -114,32 +119,50 @@ describe('AdminRecruitersService', () => {
         email: 'jane@example.com',
       } as User);
 
-      await expect(
-        service.inviteRecruiter('Jane', 'Doe', 'jane@example.com'),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.inviteRecruiter('jane@example.com')).rejects.toThrow(
+        ConflictException,
+      );
     });
 
-    it('should create recruiter and call cognito when email is new', async () => {
+    it('rolls back recruiter row when Cognito fails', async () => {
       userRepo.findOneBy.mockResolvedValue(null);
       const recruiter = {
-        firstName: 'Jane',
-        lastName: 'Doe',
+        firstName: null,
+        lastName: null,
         email: 'jane@example.com',
         accountStatus: AccountStatus.INVITE_SENT,
-      } as Recruiter;
+      } as unknown as Recruiter;
+      recruiterRepo.create.mockReturnValue(recruiter);
+      recruiterRepo.save.mockResolvedValue(recruiter);
+      recruiterRepo.remove.mockResolvedValue(recruiter);
+      cognitoService.adminCreateUser.mockRejectedValue(
+        new Error('Cognito unavailable'),
+      );
+
+      await expect(service.inviteRecruiter('jane@example.com')).rejects.toThrow(
+        InternalServerErrorException,
+      );
+
+      expect(recruiterRepo.remove).toHaveBeenCalledWith(recruiter);
+    });
+
+    it('should create recruiter with null names and call cognito when email is new', async () => {
+      userRepo.findOneBy.mockResolvedValue(null);
+      const recruiter = {
+        firstName: null,
+        lastName: null,
+        email: 'jane@example.com',
+        accountStatus: AccountStatus.INVITE_SENT,
+      } as unknown as Recruiter;
       recruiterRepo.create.mockReturnValue(recruiter);
       recruiterRepo.save.mockResolvedValue(recruiter);
       cognitoService.adminCreateUser.mockResolvedValue(undefined);
 
-      const result = await service.inviteRecruiter(
-        'Jane',
-        'Doe',
-        'jane@example.com',
-      );
+      const result = await service.inviteRecruiter('jane@example.com');
 
       expect(recruiterRepo.create).toHaveBeenCalledWith({
-        firstName: 'Jane',
-        lastName: 'Doe',
+        firstName: null,
+        lastName: null,
         email: 'jane@example.com',
         accountStatus: AccountStatus.INVITE_SENT,
       });

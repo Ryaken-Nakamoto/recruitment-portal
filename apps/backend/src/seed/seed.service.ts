@@ -22,9 +22,10 @@ import { InterviewRubric } from '../rubrics/entities/interview-rubric.entity';
 import { Applicant } from '../applicants/entities/applicant.entity';
 import { Application } from '../applications/entities/application.entity';
 import { ApplicationRound } from '../applications/enums/application-round.enum';
-import { Email } from '../emails/entities/email.entity';
 import { FinalDecision } from '../applications/enums/final-decision.enum';
+import { Email } from '../emails/entities/email.entity';
 import { RawGoogleFormsService } from '../raw-google-forms/raw-google-forms.service';
+import emailTemplates from './email-templates.json';
 import { SubmitGoogleFormDto } from '../raw-google-forms/dto/submit-google-form.dto';
 import { FormYear } from '../raw-google-forms/enums/form-year.enum';
 import { College } from '../raw-google-forms/enums/college.enum';
@@ -392,71 +393,30 @@ export class SeedService implements OnApplicationBootstrap {
   }
 
   private async seedEmails() {
-    const count = await this.emailRepo.count();
-    if (count > 0) {
-      this.logger.log('Email templates already exist — skipping seed');
-      return;
-    }
-
-    const rejectionBody =
-      'Dear {{firstName}},\n\nThank you for applying to Code4Community. After careful consideration, we regret to inform you that we will not be moving forward with your application at this time.\n\nWe appreciate the time and effort you put into your application and encourage you to apply again in the future.\n\nBest regards,\nCode4Community';
-
-    const templates = [
-      {
-        name: 'screening-accepted',
-        applicationStage: ApplicationRound.SCREENING,
-        decision: FinalDecision.ACCEPTED,
-        subject: 'Code4Community {{position}} Interview Invitation',
-        body: 'Dear {{firstName}},\n\nCongratulations! We are pleased to invite you to the next stage of our recruitment process for the {{position}} role at Code4Community.\n\nPlease use the following link to schedule your interview: {{calendlyLink}}\n\nWe look forward to speaking with you!\n\nBest regards,\nCode4Community',
-      },
-      {
-        name: 'screening-rejected',
-        applicationStage: ApplicationRound.SCREENING,
-        decision: FinalDecision.REJECTED,
-        subject: 'Code4Community Application Update',
-        body: rejectionBody,
-      },
-      {
-        name: 'technical-interview-accepted',
-        applicationStage: ApplicationRound.TECHNICAL_INTERVIEW,
-        decision: FinalDecision.ACCEPTED,
-        subject: 'Code4Community Behavioral Interview Invitation',
-        body: 'Dear {{firstName}},\n\nWe are excited to let you know that you have advanced to the behavioral interview stage of our recruitment process at Code4Community.\n\nPlease use the following link to schedule your interview: {{calendlyLink}}\n\nWe look forward to speaking with you!\n\nBest regards,\nCode4Community',
-      },
-      {
-        name: 'technical-interview-rejected',
-        applicationStage: ApplicationRound.TECHNICAL_INTERVIEW,
-        decision: FinalDecision.REJECTED,
-        subject: 'Code4Community Application Update',
-        body: rejectionBody,
-      },
-      {
-        name: 'behavioral-interview-accepted',
-        applicationStage: ApplicationRound.BEHAVIORAL_INTERVIEW,
-        decision: FinalDecision.ACCEPTED,
-        subject: 'Congratulations from Code4Community!',
-        body: 'Dear {{firstName}},\n\nWe are thrilled to offer you a position at Code4Community! Your skills and enthusiasm impressed us throughout the recruitment process.\n\nPlease reply to this email to confirm your acceptance. We look forward to welcoming you to the team!\n\nBest regards,\nCode4Community',
-      },
-      {
-        name: 'behavioral-interview-rejected',
-        applicationStage: ApplicationRound.BEHAVIORAL_INTERVIEW,
-        decision: FinalDecision.REJECTED,
-        subject: 'Code4Community Application Update',
-        body: rejectionBody,
-      },
-    ];
-
-    for (const template of templates) {
+    for (const template of emailTemplates) {
+      const existing = await this.emailRepo.findOne({
+        where: { name: template.name },
+      });
+      if (existing) {
+        this.logger.log(
+          `Email template "${template.name}" already exists — skipping`,
+        );
+        continue;
+      }
       await this.emailRepo.save(
         this.emailRepo.create({
-          ...template,
+          name: template.name,
+          subject: template.subject,
+          body: template.body,
+          applicationStage:
+            template.applicationStage as unknown as ApplicationRound,
+          decision: template.decision as unknown as FinalDecision,
           requiredVariables: [],
           defaultContext: {},
         }),
       );
+      this.logger.log(`Email template "${template.name}" seeded`);
     }
-
-    this.logger.log('Email templates seeded');
   }
 
   private async seedMockApplications() {

@@ -19,6 +19,7 @@ import { InterviewReviewScore } from '../applications/entities/interview-review-
 import { InterviewReviewApproval } from '../applications/entities/interview-review-approval.entity';
 import { ApplicationRound } from '../applications/enums/application-round.enum';
 import { InterviewReviewStatus } from '../applications/enums/interview-review-status.enum';
+import { ScreeningReviewStatus } from '../applications/enums/screening-review-status.enum';
 import { RoundStatus } from '../applications/enums/round-status.enum';
 import { ScreeningCriteria } from '../rubrics/entities/screening-criteria.entity';
 import { InterviewCriteria } from '../rubrics/entities/interview-criteria.entity';
@@ -75,8 +76,17 @@ export class RecruitersReviewService {
             relations: ['assignment'],
           })
         : [];
-    const reviewedAssignmentIds = new Set(
-      screeningReviews.map((r) => (r.assignment as Assignment).id),
+
+    // Separate submitted vs draft screening reviews
+    const submittedReviewAssignmentIds = new Set(
+      screeningReviews
+        .filter((r) => r.status === ScreeningReviewStatus.SUBMITTED)
+        .map((r) => (r.assignment as Assignment).id),
+    );
+    const draftReviewAssignmentIds = new Set(
+      screeningReviews
+        .filter((r) => r.status === ScreeningReviewStatus.DRAFT)
+        .map((r) => (r.assignment as Assignment).id),
     );
 
     // Check interview reviews (per-assignment for non-screening rounds)
@@ -96,11 +106,12 @@ export class RecruitersReviewService {
       }
     }
 
-    // Only show active assignments: same round AND no review submitted AND no terminal decision
+    // Only show active assignments: same round AND no submitted review AND no terminal decision
+    // Draft screening reviews keep the assignment active (still working on it)
     const activeAssignments = allAssignments.filter((a) => {
       const app = a.application as Application;
       if (a.round !== app.round || app.finalDecision !== null) return false;
-      if (app.round === 'screening' && reviewedAssignmentIds.has(a.id))
+      if (app.round === 'screening' && submittedReviewAssignmentIds.has(a.id))
         return false;
       if (app.round !== 'screening' && interviewReviewAppIds.has(app.id))
         return false;
@@ -120,10 +131,13 @@ export class RecruitersReviewService {
         let reviewStatus: string;
 
         if (app.round === 'screening') {
-          const review = await this.screeningReviewRepo.findOne({
-            where: { assignment: { id: a.id } },
-          });
-          reviewStatus = review ? 'submitted' : 'not_started';
+          if (submittedReviewAssignmentIds.has(a.id)) {
+            reviewStatus = 'submitted';
+          } else if (draftReviewAssignmentIds.has(a.id)) {
+            reviewStatus = 'draft';
+          } else {
+            reviewStatus = 'not_started';
+          }
         } else {
           const review = await this.interviewReviewRepo.findOne({
             where: {
@@ -146,12 +160,17 @@ export class RecruitersReviewService {
         let reviewsTotal = 0;
         let reviewsSubmitted = 0;
         if (app.round === 'screening') {
-          const allAssignments = await this.assignmentRepo.find({
+          const allAssignmentsForApp = await this.assignmentRepo.find({
             where: { application: { id: app.id } },
           });
-          reviewsTotal = allAssignments.length;
+          reviewsTotal = allAssignmentsForApp.length;
           reviewsSubmitted = await this.screeningReviewRepo.count({
-            where: { assignment: { id: In(allAssignments.map((x) => x.id)) } },
+            where: {
+              assignment: {
+                id: In(allAssignmentsForApp.map((x) => x.id)),
+              },
+              status: ScreeningReviewStatus.SUBMITTED,
+            },
           });
         }
 
@@ -175,10 +194,7 @@ export class RecruitersReviewService {
     return { data, total, page, totalPages: Math.ceil(total / limit) };
   }
 
-  async submitScreeningReview(
-    dto: SaveScreeningReviewDto,
-    recruiter: Recruiter,
-  ) {
+  async saveScreeningReview(dto: SaveScreeningReviewDto, recruiter: Recruiter) {
     const assignment = await this.assignmentRepo.findOne({
       where: { id: dto.assignmentId, recruiter: { id: recruiter.id } },
       relations: ['application', 'application.applicant'],
@@ -189,40 +205,107 @@ export class RecruitersReviewService {
 
     const existing = await this.screeningReviewRepo.findOne({
       where: { assignment: { id: assignment.id } },
+      relations: ['scores'],
     });
-    if (existing) {
+    if (existing && existing.status === ScreeningReviewStatus.SUBMITTED) {
       throw new ConflictException(
         'Screening review already submitted for this assignment',
       );
     }
 
-    const app = assignment.application as Application;
-    const submittedIds = new Set(dto.scores.map((s) => s.criteriaId));
-    const criteria = await this.screeningCriteriaRepo.findBy({
-      id: In(Array.from(submittedIds)),
-    });
-    if (criteria.length !== submittedIds.size) {
-      throw new BadRequestException('One or more criteria IDs not found');
+    // Validate all submitted criteria IDs exist (allow empty array for draft)
+    if (dto.scores.length > 0) {
+      const submittedIds = new Set(dto.scores.map((s) => s.criteriaId));
+      const criteria = await this.screeningCriteriaRepo.findBy({
+        id: In(Array.from(submittedIds)),
+      });
+      if (criteria.length !== submittedIds.size) {
+        throw new BadRequestException('One or more criteria IDs not found');
+      }
+
+      let review: ScreeningReview;
+      if (!existing) {
+        review = this.screeningReviewRepo.create({
+          assignment,
+          status: ScreeningReviewStatus.DRAFT,
+          submittedAt: null,
+        });
+        await this.screeningReviewRepo.save(review);
+      } else {
+        await this.screeningReviewScoreRepo.delete({
+          review: { id: existing.id },
+        });
+        review = existing;
+      }
+
+      const scoreEntities = dto.scores.map((s) => {
+        const crit = criteria.find((c) => c.id === s.criteriaId)!;
+        return this.screeningReviewScoreRepo.create({
+          review,
+          criteria: crit,
+          score: s.score,
+        });
+      });
+      await this.screeningReviewScoreRepo.save(scoreEntities);
+
+      this.logger.log(
+        `Screening review draft saved for assignment ${assignment.id} by recruiter ${recruiter.id}`,
+      );
+      return { id: review.id };
     }
 
-    const review = this.screeningReviewRepo.create({ assignment });
-    await this.screeningReviewRepo.save(review);
-
-    const scoreEntities = dto.scores.map((s) => {
-      const crit = criteria.find((c) => c.id === s.criteriaId)!;
-      return this.screeningReviewScoreRepo.create({
-        review,
-        criteria: crit,
-        score: s.score,
+    // Empty scores: create or return existing draft
+    if (!existing) {
+      const review = this.screeningReviewRepo.create({
+        assignment,
+        status: ScreeningReviewStatus.DRAFT,
+        submittedAt: null,
       });
-    });
-    await this.screeningReviewScoreRepo.save(scoreEntities);
+      await this.screeningReviewRepo.save(review);
+      this.logger.log(
+        `Empty screening review draft created for assignment ${assignment.id} by recruiter ${recruiter.id}`,
+      );
+      return { id: review.id };
+    }
 
     this.logger.log(
-      `Screening review submitted for assignment ${assignment.id} by recruiter ${recruiter.id}`,
+      `Screening review draft retained (no scores) for assignment ${assignment.id} by recruiter ${recruiter.id}`,
+    );
+    return { id: existing.id };
+  }
+
+  async submitScreeningReview(reviewId: number, recruiter: Recruiter) {
+    const review = await this.screeningReviewRepo.findOne({
+      where: { id: reviewId },
+      relations: [
+        'assignment',
+        'assignment.application',
+        'assignment.recruiter',
+      ],
+    });
+    if (!review) {
+      throw new NotFoundException('Screening review not found');
+    }
+    if (review.status !== ScreeningReviewStatus.DRAFT) {
+      throw new ConflictException('Screening review is not in draft state');
+    }
+
+    const assignment = review.assignment as Assignment;
+    const assignedRecruiter = assignment.recruiter as Recruiter;
+    if (assignedRecruiter.id !== recruiter.id) {
+      throw new ForbiddenException('Not authorized to submit this review');
+    }
+
+    const app = assignment.application as Application;
+
+    review.status = ScreeningReviewStatus.SUBMITTED;
+    review.submittedAt = new Date();
+    await this.screeningReviewRepo.save(review);
+
+    this.logger.log(
+      `Screening review ${reviewId} submitted by recruiter ${recruiter.id}`,
     );
 
-    // Check if all current-round assignments for this application now have reviews
     await this.checkScreeningCompletion(app.id, app.round);
 
     return { id: review.id };
@@ -461,8 +544,12 @@ export class RecruitersReviewService {
       },
     });
 
+    // Only SUBMITTED reviews count toward completion (drafts do not)
     const reviewCount = await this.screeningReviewRepo.count({
-      where: { assignment: { id: In(allAssignments.map((a) => a.id)) } },
+      where: {
+        assignment: { id: In(allAssignments.map((a) => a.id)) },
+        status: ScreeningReviewStatus.SUBMITTED,
+      },
     });
 
     if (reviewCount === allAssignments.length && allAssignments.length > 0) {
@@ -601,6 +688,15 @@ export class RecruitersReviewService {
       })),
     );
 
+    let reviewStatus: 'not_started' | 'draft' | 'submitted';
+    if (!review) {
+      reviewStatus = 'not_started';
+    } else if (review.status === ScreeningReviewStatus.SUBMITTED) {
+      reviewStatus = 'submitted';
+    } else {
+      reviewStatus = 'draft';
+    }
+
     this.logger.log(
       `Recruiter ${recruiter.id} fetched assignment detail for assignment ${assignmentId}`,
     );
@@ -608,6 +704,7 @@ export class RecruitersReviewService {
     return {
       assignmentId: assignment.id,
       notes: assignment.notes,
+      reviewId: review ? review.id : null,
       application: {
         id: app.id,
         applicantName: applicant.name,
@@ -622,7 +719,7 @@ export class RecruitersReviewService {
         teamConflict: rawForm.teamConflict,
         otherExperiences: rawForm.otherExperiences,
       },
-      reviewStatus: review ? 'submitted' : 'not_started',
+      reviewStatus,
       rubricCriteria,
     };
   }
@@ -659,8 +756,16 @@ export class RecruitersReviewService {
             relations: ['assignment'],
           })
         : [];
-    const reviewedIds = new Set(
-      reviews.map((r) => (r.assignment as Assignment).id),
+
+    const submittedIds = new Set(
+      reviews
+        .filter((r) => r.status === ScreeningReviewStatus.SUBMITTED)
+        .map((r) => (r.assignment as Assignment).id),
+    );
+    const draftIds = new Set(
+      reviews
+        .filter((r) => r.status === ScreeningReviewStatus.DRAFT)
+        .map((r) => (r.assignment as Assignment).id),
     );
 
     this.logger.log(
@@ -673,7 +778,11 @@ export class RecruitersReviewService {
       recruiterName: `${(a.recruiter as Recruiter).firstName} ${
         (a.recruiter as Recruiter).lastName
       }`,
-      reviewStatus: reviewedIds.has(a.id) ? 'submitted' : 'not_started',
+      reviewStatus: submittedIds.has(a.id)
+        ? 'submitted'
+        : draftIds.has(a.id)
+        ? 'draft'
+        : 'not_started',
     }));
   }
 
@@ -698,8 +807,11 @@ export class RecruitersReviewService {
             relations: ['assignment'],
           })
         : [];
-    const reviewedAssignmentIds = new Set(
-      screeningReviews.map((r) => (r.assignment as Assignment).id),
+
+    const submittedReviewAssignmentIds = new Set(
+      screeningReviews
+        .filter((r) => r.status === ScreeningReviewStatus.SUBMITTED)
+        .map((r) => (r.assignment as Assignment).id),
     );
 
     // Check interview reviews (per-assignment for non-screening rounds)
@@ -719,11 +831,12 @@ export class RecruitersReviewService {
       }
     }
 
-    // Past: round advanced, terminal decision, or review submitted
+    // Past: round advanced, terminal decision, or SUBMITTED review
+    // Draft reviews do NOT move assignment to completed
     const completedAssignments = allAssignments.filter((a) => {
       const app = a.application as Application;
       if (a.round !== app.round || app.finalDecision !== null) return true;
-      if (app.round === 'screening' && reviewedAssignmentIds.has(a.id))
+      if (app.round === 'screening' && submittedReviewAssignmentIds.has(a.id))
         return true;
       if (app.round !== 'screening' && interviewReviewAppIds.has(app.id))
         return true;
@@ -733,26 +846,30 @@ export class RecruitersReviewService {
     const total = completedAssignments.length;
     const assignments = completedAssignments.slice(skip, skip + limit);
 
-    const data = await Promise.all(
-      assignments.map(async (a) => {
-        const app = a.application as Application;
-        const applicant = app.applicant as { name: string };
-        const review = await this.screeningReviewRepo.findOne({
-          where: { assignment: { id: a.id } },
-        });
-        return {
-          assignmentId: a.id,
-          application: {
-            id: app.id,
-            applicantName: applicant.name,
-            round: a.round,
-          },
-          reviewStatus: review
-            ? ('submitted' as const)
-            : ('not_started' as const),
-        };
-      }),
-    );
+    const data = assignments.map((a) => {
+      const app = a.application as Application;
+      const applicant = app.applicant as { name: string };
+      const reviewForThis = screeningReviews.find(
+        (r) => (r.assignment as Assignment).id === a.id,
+      );
+      let reviewStatus: 'submitted' | 'draft' | 'not_started';
+      if (!reviewForThis) {
+        reviewStatus = 'not_started';
+      } else if (reviewForThis.status === ScreeningReviewStatus.SUBMITTED) {
+        reviewStatus = 'submitted';
+      } else {
+        reviewStatus = 'draft';
+      }
+      return {
+        assignmentId: a.id,
+        application: {
+          id: app.id,
+          applicantName: applicant.name,
+          round: a.round,
+        },
+        reviewStatus,
+      };
+    });
 
     this.logger.log(
       `Listed ${data.length} completed assignments (page ${page}) for recruiter ${recruiter.id}`,
@@ -783,7 +900,8 @@ export class RecruitersReviewService {
     }
 
     const app = assignment.application as Application;
-    // Assignment is "active" only if: same round, no terminal decision, and no review submitted
+    // Assignment is "active" only if: same round, no terminal decision, and no SUBMITTED review
+    // (a draft review does not count as completing the assignment)
     if (assignment.round === app.round && app.finalDecision === null) {
       const hasScreeningReview = await this.screeningReviewRepo.findOne({
         where: { assignment: { id: assignment.id } },
@@ -798,7 +916,8 @@ export class RecruitersReviewService {
             })
           : null;
       const reviewSubmitted =
-        !!hasScreeningReview ||
+        (hasScreeningReview !== null &&
+          hasScreeningReview?.status === ScreeningReviewStatus.SUBMITTED) ||
         (hasInterviewReview !== null &&
           hasInterviewReview?.status !== InterviewReviewStatus.DRAFT);
       if (!reviewSubmitted) {
@@ -834,6 +953,15 @@ export class RecruitersReviewService {
         })
       : [];
 
+    let reviewStatus: 'submitted' | 'draft' | 'not_started';
+    if (!review) {
+      reviewStatus = 'not_started';
+    } else if (review.status === ScreeningReviewStatus.SUBMITTED) {
+      reviewStatus = 'submitted';
+    } else {
+      reviewStatus = 'draft';
+    }
+
     this.logger.log(
       `Recruiter ${recruiter.id} fetched completed assignment detail for assignment ${assignmentId}`,
     );
@@ -845,7 +973,7 @@ export class RecruitersReviewService {
       assignedAt: assignment.assignedAt,
       notes: assignment.notes,
       round: assignment.round,
-      reviewStatus: review ? ('submitted' as const) : ('not_started' as const),
+      reviewStatus,
       rubricCriteria,
       application: {
         id: app.id,

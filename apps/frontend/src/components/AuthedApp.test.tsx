@@ -6,12 +6,23 @@ import { Role, AccountStatus } from '@api/dtos/enums';
 import { User } from '@api/dtos/user.dto';
 
 vi.mock('../hooks/useAuth');
+vi.mock('./CompleteProfileModal', () => ({
+  CompleteProfileModal: ({ open }: { open: boolean }) =>
+    open ? <div>Complete Profile Modal</div> : null,
+}));
+
 const mockUseAuth = vi.mocked(useAuth);
 
-const makeUser = (role: Role): User => ({
+const makeUser = (
+  role: Role,
+  names: { firstName: string | null; lastName: string | null } = {
+    firstName: 'Test',
+    lastName: 'User',
+  },
+): User => ({
   id: 1,
-  firstName: 'Test',
-  lastName: 'User',
+  firstName: names.firstName,
+  lastName: names.lastName,
   email: 'test@example.com',
   role,
   accountStatus: AccountStatus.ACTIVATED,
@@ -71,5 +82,18 @@ describe('AuthedApp', () => {
   it('denies admin access to recruiter routes and redirects to admin home', () => {
     setup([false, false, makeUser(Role.ADMIN)], [Role.RECRUITER]);
     expect(screen.getByText('Admin Home')).toBeTruthy();
+  });
+
+  it('shows CompleteProfileModal when user has null firstName', () => {
+    setup(
+      [
+        false,
+        false,
+        makeUser(Role.RECRUITER, { firstName: null, lastName: null }),
+      ],
+      [Role.RECRUITER],
+    );
+    expect(screen.getByText('Complete Profile Modal')).toBeTruthy();
+    expect(screen.getByText('Protected Content')).toBeTruthy();
   });
 });

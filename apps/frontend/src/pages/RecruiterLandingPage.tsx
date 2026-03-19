@@ -1,89 +1,33 @@
 import { useNavigate } from 'react-router-dom';
 import { Box, Button, Grid, Paper, Typography } from '@mui/material';
-import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
-import GroupIcon from '@mui/icons-material/Group';
-import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
-import GradingIcon from '@mui/icons-material/Grading';
-import EmailIcon from '@mui/icons-material/Email';
-import MarkEmailReadIcon from '@mui/icons-material/MarkEmailRead';
-import HistoryIcon from '@mui/icons-material/History';
+import AssignmentIcon from '@mui/icons-material/Assignment';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { signOut } from 'aws-amplify/auth';
 
 const C4C_PURPLE = '#605ACD';
 const C4C_BLUE = '#4C63D2';
-const C4C_VIVID = '#2A77F4';
-const C4C_PINK = '#B772EA';
 
 const CARDS = [
   {
-    icon: <PeopleAltIcon sx={{ fontSize: 42 }} />,
+    icon: <AssignmentIcon sx={{ fontSize: 42 }} />,
     iconColor: C4C_PURPLE,
     accentColor: C4C_PURPLE,
-    title: 'All Applications',
-    description: 'Review and manage all applicant submissions',
-    route: '/admin/applications',
-  },
-  {
-    icon: <GroupIcon sx={{ fontSize: 42 }} />,
-    iconColor: C4C_BLUE,
-    accentColor: C4C_BLUE,
-    title: 'Recruiter Management',
-    description: 'Invite, activate, and manage your team',
-    route: '/admin/recruiters',
-  },
-  {
-    icon: <AssignmentIndIcon sx={{ fontSize: 42 }} />,
-    iconColor: C4C_PINK,
-    accentColor: C4C_PINK,
-    title: 'Assign Reviewers',
-    description: 'Bulk-assign recruiters to applications',
-    route: '/admin/assignment',
-  },
-  {
-    icon: <GradingIcon sx={{ fontSize: 42 }} />,
-    iconColor: C4C_VIVID,
-    accentColor: C4C_VIVID,
-    title: 'Rubrics',
-    description: 'View screening and interview rubrics',
-    route: '/admin/rubrics',
-  },
-  {
-    icon: <EmailIcon sx={{ fontSize: 42 }} />,
-    iconColor: C4C_PURPLE,
-    accentColor: C4C_PURPLE,
-    title: 'Email Templates',
-    description: 'Edit email templates for each pipeline stage',
-    route: '/admin/emails',
-  },
-  {
-    icon: <MarkEmailReadIcon sx={{ fontSize: 42 }} />,
-    iconColor: C4C_BLUE,
-    accentColor: C4C_BLUE,
-    title: 'Sent Emails',
-    description: 'Browse a history of all emails sent to applicants',
-    route: '/admin/sent-emails',
-  },
-  {
-    icon: <HistoryIcon sx={{ fontSize: 42 }} />,
-    iconColor: C4C_PINK,
-    accentColor: C4C_PINK,
-    title: 'Assignment History',
-    description: 'View past recruiter assignments by round',
-    route: '/admin/assignment-history',
+    title: 'My Applications',
+    description: 'Review your assigned applications',
+    route: '/recruiter/applications',
   },
   {
     icon: <AccountCircleIcon sx={{ fontSize: 42 }} />,
-    iconColor: C4C_VIVID,
-    accentColor: C4C_VIVID,
+    iconColor: C4C_BLUE,
+    accentColor: C4C_BLUE,
     title: 'Account Info',
     description: 'View and edit your profile information',
-    route: '/admin/profile',
+    route: '/recruiter/profile',
   },
 ];
 
-const AdminHomePage: React.FC = () => {
+const RecruiterLandingPage: React.FC = () => {
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -97,14 +41,14 @@ const AdminHomePage: React.FC = () => {
 
   return (
     <Box>
-      {/* Banner — primary glass over the mesh */}
+      {/* Banner */}
       <Box
         sx={{
           background:
             'linear-gradient(135deg, rgba(76,99,210,0.88) 0%, rgba(96,90,205,0.85) 100%)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          borderBottom: '1px solid rgba(255,255,255,0.30)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          borderBottom: '1px solid rgba(255,255,255,0.18)',
           color: 'white',
           px: 4,
           py: 5.5,
@@ -115,7 +59,6 @@ const AdminHomePage: React.FC = () => {
           overflow: 'hidden',
         }}
       >
-        {/* Decorative circle rings */}
         <Box
           sx={{
             position: 'absolute',
@@ -124,7 +67,7 @@ const AdminHomePage: React.FC = () => {
             width: 180,
             height: 180,
             borderRadius: '50%',
-            border: '28px solid rgba(183,114,234,0.35)',
+            border: '28px solid rgba(236, 72, 153, 0.35)',
             pointerEvents: 'none',
           }}
         />
@@ -136,23 +79,10 @@ const AdminHomePage: React.FC = () => {
             width: 90,
             height: 90,
             borderRadius: '50%',
-            border: '14px solid rgba(200,197,255,0.40)',
+            border: '14px solid rgba(129, 140, 248, 0.4)',
             pointerEvents: 'none',
           }}
         />
-        <Box
-          sx={{
-            position: 'absolute',
-            bottom: -50,
-            right: 30,
-            width: 120,
-            height: 120,
-            borderRadius: '50%',
-            border: '18px solid rgba(255,255,255,0.07)',
-            pointerEvents: 'none',
-          }}
-        />
-
         <Box sx={{ position: 'relative' }}>
           <Typography
             variant="overline"
@@ -167,7 +97,8 @@ const AdminHomePage: React.FC = () => {
           </Typography>
           <Typography
             variant="h4"
-            sx={{ lineHeight: 1.15, mt: 0.25, color: 'white' }}
+            fontWeight={800}
+            sx={{ lineHeight: 1.15, mt: 0.25 }}
           >
             Recruitment Portal
           </Typography>
@@ -175,10 +106,9 @@ const AdminHomePage: React.FC = () => {
             variant="subtitle1"
             sx={{ opacity: 0.75, mt: 0.5, fontWeight: 500 }}
           >
-            Admin Dashboard
+            Recruiter Dashboard
           </Typography>
         </Box>
-
         <Button
           onClick={handleLogout}
           startIcon={<LogoutIcon />}
@@ -207,7 +137,6 @@ const AdminHomePage: React.FC = () => {
         <Grid container spacing={2.5}>
           {CARDS.map((card) => (
             <Grid size={{ xs: 12, sm: 6 }} key={card.route}>
-              {/* Paper gets glass from theme; we layer C4C's offset-shadow on top */}
               <Paper
                 elevation={0}
                 onClick={() => navigate(card.route)}
@@ -247,4 +176,4 @@ const AdminHomePage: React.FC = () => {
   );
 };
 
-export default AdminHomePage;
+export default RecruiterLandingPage;

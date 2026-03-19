@@ -32,41 +32,23 @@ const renderModal = (
 // --- validate (pure function) ---
 
 describe('validate', () => {
-  it('returns errors for all empty fields', () => {
-    const errors = validate({ firstName: '', lastName: '', email: '' });
-    expect(errors.firstName).toBeTruthy();
-    expect(errors.lastName).toBeTruthy();
+  it('returns an error for an empty email', () => {
+    const errors = validate({ email: '' });
     expect(errors.email).toBeTruthy();
   });
 
-  it('returns errors for whitespace-only fields', () => {
-    const errors = validate({
-      firstName: '   ',
-      lastName: '   ',
-      email: '   ',
-    });
-    expect(errors.firstName).toBeTruthy();
-    expect(errors.lastName).toBeTruthy();
+  it('returns an error for whitespace-only email', () => {
+    const errors = validate({ email: '   ' });
     expect(errors.email).toBeTruthy();
   });
 
   it('returns an email error for an invalid email format', () => {
-    const errors = validate({
-      firstName: 'Jane',
-      lastName: 'Doe',
-      email: 'not-an-email',
-    });
-    expect(errors.firstName).toBeUndefined();
-    expect(errors.lastName).toBeUndefined();
+    const errors = validate({ email: 'not-an-email' });
     expect(errors.email).toBeTruthy();
   });
 
-  it('returns no errors for a fully valid form', () => {
-    const errors = validate({
-      firstName: 'Jane',
-      lastName: 'Doe',
-      email: 'jane@example.com',
-    });
+  it('returns no errors for a valid email', () => {
+    const errors = validate({ email: 'jane@example.com' });
     expect(Object.keys(errors)).toHaveLength(0);
   });
 });
@@ -76,22 +58,21 @@ describe('validate', () => {
 describe('InviteRecruiterModal', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('shows validation errors after submitting an empty form', async () => {
+  it('shows only the email field', () => {
+    renderModal();
+    expect(screen.getByLabelText(/email/i)).toBeTruthy();
+    expect(screen.queryByLabelText(/first name/i)).toBeNull();
+    expect(screen.queryByLabelText(/last name/i)).toBeNull();
+  });
+
+  it('shows a validation error after submitting an empty form', async () => {
     renderModal();
     fireEvent.click(screen.getByText('Send Invite'));
-    expect(await screen.findByText('First name is required')).toBeTruthy();
-    expect(screen.getByText('Last name is required')).toBeTruthy();
-    expect(screen.getByText('Email is required')).toBeTruthy();
+    expect(await screen.findByText('Email is required')).toBeTruthy();
   });
 
   it('shows an email format error for an invalid email', async () => {
     renderModal();
-    fireEvent.change(screen.getByLabelText(/first name/i), {
-      target: { value: 'Jane' },
-    });
-    fireEvent.change(screen.getByLabelText(/last name/i), {
-      target: { value: 'Doe' },
-    });
     fireEvent.change(screen.getByLabelText(/email/i), {
       target: { value: 'bad-email' },
     });
@@ -106,12 +87,6 @@ describe('InviteRecruiterModal', () => {
     mockInviteRecruiter.mockResolvedValue({} as unknown as User);
     renderModal({ onSuccess });
 
-    fireEvent.change(screen.getByLabelText(/first name/i), {
-      target: { value: 'Jane' },
-    });
-    fireEvent.change(screen.getByLabelText(/last name/i), {
-      target: { value: 'Doe' },
-    });
     fireEvent.change(screen.getByLabelText(/email/i), {
       target: { value: 'jane@example.com' },
     });
@@ -128,12 +103,6 @@ describe('InviteRecruiterModal', () => {
     mockInviteRecruiter.mockRejectedValue(axiosError);
     renderModal();
 
-    fireEvent.change(screen.getByLabelText(/first name/i), {
-      target: { value: 'Jane' },
-    });
-    fireEvent.change(screen.getByLabelText(/last name/i), {
-      target: { value: 'Doe' },
-    });
     fireEvent.change(screen.getByLabelText(/email/i), {
       target: { value: 'jane@example.com' },
     });
@@ -142,23 +111,47 @@ describe('InviteRecruiterModal', () => {
     expect(await screen.findByText(/already exists/i)).toBeTruthy();
   });
 
-  it('calls onError for non-409 API failures', async () => {
+  it('calls onError with fallback message for non-axios non-409 errors', async () => {
     const onError = vi.fn();
     vi.mocked(axios.isAxiosError).mockReturnValue(false);
     mockInviteRecruiter.mockRejectedValue(new Error('Server error'));
     renderModal({ onError });
 
-    fireEvent.change(screen.getByLabelText(/first name/i), {
-      target: { value: 'Jane' },
-    });
-    fireEvent.change(screen.getByLabelText(/last name/i), {
-      target: { value: 'Doe' },
-    });
     fireEvent.change(screen.getByLabelText(/email/i), {
       target: { value: 'jane@example.com' },
     });
     fireEvent.click(screen.getByText('Send Invite'));
 
-    await waitFor(() => expect(onError).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledWith(
+        'Failed to send invite. Please try again.',
+      ),
+    );
+  });
+
+  it('passes backend error message to onError for non-409 axios errors', async () => {
+    const onError = vi.fn();
+    const axiosError = {
+      response: {
+        status: 500,
+        data: {
+          message: 'Failed to create login credentials. Please try again.',
+        },
+      },
+    };
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    mockInviteRecruiter.mockRejectedValue(axiosError);
+    renderModal({ onError });
+
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: 'jane@example.com' },
+    });
+    fireEvent.click(screen.getByText('Send Invite'));
+
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledWith(
+        'Failed to create login credentials. Please try again.',
+      ),
+    );
   });
 });

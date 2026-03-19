@@ -15,6 +15,8 @@ import AssignmentPage from '@pages/AssignmentPage';
 import ApplicationsPage from '@pages/ApplicationsPage';
 import DetailedApplicationPage from '@pages/DetailedApplicationPage';
 import RecruiterHomePage from '@pages/RecruiterHomePage';
+import RecruiterLandingPage from '@pages/RecruiterLandingPage';
+import ProfilePage from '@pages/ProfilePage';
 import RecruiterDetailPage from '@pages/RecruiterDetailPage';
 import SendEmailPage from '@pages/SendEmailPage';
 import SentEmailsPage from '@pages/SentEmailsPage';
@@ -44,11 +46,15 @@ const router = createBrowserRouter([
       },
       {
         path: 'home',
-        element: <RecruiterHomePage />,
+        element: <RecruiterLandingPage />,
       },
       {
         path: 'applications',
         element: <RecruiterHomePage />,
+      },
+      {
+        path: 'profile',
+        element: <ProfilePage />,
       },
       {
         path: 'applications/:id',
@@ -119,6 +125,10 @@ const router = createBrowserRouter([
       {
         path: 'assignment-history/:id',
         element: <AssignmentHistoryDetailPage />,
+      },
+      {
+        path: 'profile',
+        element: <ProfilePage />,
       },
     ],
   },

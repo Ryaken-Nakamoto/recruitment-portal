@@ -51,20 +51,16 @@ describe('AuthService', () => {
       expect(mockUserRepo.save).not.toHaveBeenCalled();
     });
 
-    it('activates an INVITE_SENT user on first login and returns the updated user', async () => {
+    it('allows an INVITE_SENT user to authenticate without activating', async () => {
       const user = makeUser({ accountStatus: AccountStatus.INVITE_SENT });
       mockCognitoService.validateToken.mockResolvedValue({ email: user.email });
       mockUserRepo.findOneBy.mockResolvedValue(user);
-      mockUserRepo.save.mockResolvedValue({
-        ...user,
-        accountStatus: AccountStatus.ACTIVATED,
-      });
 
       const result = await service.verifyJwt('valid-token');
 
-      expect(user.accountStatus).toBe(AccountStatus.ACTIVATED);
-      expect(mockUserRepo.save).toHaveBeenCalledWith(user);
-      expect(result).toBeDefined();
+      expect(result).toBe(user);
+      expect(result.accountStatus).toBe(AccountStatus.INVITE_SENT);
+      expect(mockUserRepo.save).not.toHaveBeenCalled();
     });
 
     it('throws UnauthorizedException for a DEACTIVATED user', async () => {

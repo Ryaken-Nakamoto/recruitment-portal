@@ -106,7 +106,9 @@ const RecruiterDetailPage: React.FC = () => {
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
         <Typography variant="h4" fontWeight="bold">
-          {data.firstName} {data.lastName}
+          {data.firstName && data.lastName
+            ? `${data.firstName} ${data.lastName}`
+            : 'Pending Setup'}
         </Typography>
         <AccountStatusChip status={data.accountStatus} />
       </Box>

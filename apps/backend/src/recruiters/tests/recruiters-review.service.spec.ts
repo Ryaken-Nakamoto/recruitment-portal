@@ -20,6 +20,7 @@ import { ScreeningCriteria } from '../../rubrics/entities/screening-criteria.ent
 import { ScreeningRubric } from '../../rubrics/entities/screening-rubric.entity';
 import { InterviewCriteria } from '../../rubrics/entities/interview-criteria.entity';
 import { InterviewReviewStatus } from '../../applications/enums/interview-review-status.enum';
+import { ScreeningReviewStatus } from '../../applications/enums/screening-review-status.enum';
 import { RoundStatus } from '../../applications/enums/round-status.enum';
 import { ApplicationRound } from '../../applications/enums/application-round.enum';
 import { Recruiter } from '../entities/recruiter.entity';
@@ -167,15 +168,37 @@ describe('RecruitersReviewService', () => {
     it('excludes a screening assignment once its review is submitted', async () => {
       const assignment = makeAssignment(1, ApplicationRound.SCREENING);
       assignmentRepo.findAndCount!.mockResolvedValue([[assignment], 1]);
-      // Batch-load returns a review for this assignment → excluded from active
+      // Batch-load returns a SUBMITTED review for this assignment → excluded from active
       screeningReviewRepo.find!.mockResolvedValue([
-        { assignment: { id: 1 } } as unknown as ScreeningReview,
+        {
+          assignment: { id: 1 },
+          status: ScreeningReviewStatus.SUBMITTED,
+        } as unknown as ScreeningReview,
       ]);
 
       const result = await service.listAssignments(recruiter, 1, 20);
 
       expect(result.total).toBe(0);
       expect(result.data).toHaveLength(0);
+    });
+
+    it('keeps a screening assignment active when review is DRAFT', async () => {
+      const assignment = makeAssignment(1, ApplicationRound.SCREENING);
+      assignmentRepo.findAndCount!.mockResolvedValue([[assignment], 1]);
+      // Batch-load returns a DRAFT review → assignment stays active
+      screeningReviewRepo.find!.mockResolvedValue([
+        {
+          assignment: { id: 1 },
+          status: ScreeningReviewStatus.DRAFT,
+        } as unknown as ScreeningReview,
+      ]);
+      assignmentRepo.find!.mockResolvedValue([assignment]);
+      screeningReviewRepo.count!.mockResolvedValue(0);
+
+      const result = await service.listAssignments(recruiter, 1, 20);
+
+      expect(result.total).toBe(1);
+      expect(result.data[0].reviewStatus).toBe('draft');
     });
 
     it('returns reviewStatus "draft" for an in-progress interview review', async () => {
@@ -282,15 +305,15 @@ describe('RecruitersReviewService', () => {
   });
 
   // ──────────────────────────────────────────────────────────────────────
-  // submitScreeningReview
+  // saveScreeningReview
   // ──────────────────────────────────────────────────────────────────────
-  describe('submitScreeningReview', () => {
+  describe('saveScreeningReview', () => {
     const baseAssignment = {
       id: 10,
       application: { id: 5, round: ApplicationRound.SCREENING } as Application,
     } as Assignment;
 
-    it('creates a ScreeningReview and scores atomically', async () => {
+    it('creates a DRAFT ScreeningReview and scores', async () => {
       const criteria = [{ id: 1 }, { id: 2 }] as ScreeningCriteria[];
       assignmentRepo.findOne!.mockResolvedValue({ ...baseAssignment });
       screeningReviewRepo.findOne!.mockResolvedValue(null);
@@ -299,10 +322,8 @@ describe('RecruitersReviewService', () => {
       screeningReviewRepo.save!.mockImplementation((r) => Promise.resolve(r));
       screeningReviewScoreRepo.create!.mockImplementation((d) => d);
       screeningReviewScoreRepo.save!.mockResolvedValue([]);
-      assignmentRepo.find!.mockResolvedValue([baseAssignment]);
-      screeningReviewRepo.count!.mockResolvedValue(0); // not all done yet
 
-      const result = await service.submitScreeningReview(
+      const result = await service.saveScreeningReview(
         {
           assignmentId: 10,
           scores: [
@@ -313,19 +334,49 @@ describe('RecruitersReviewService', () => {
         recruiter,
       );
 
-      expect(screeningReviewRepo.create).toHaveBeenCalled();
+      expect(screeningReviewRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ScreeningReviewStatus.DRAFT }),
+      );
       expect(screeningReviewScoreRepo.save).toHaveBeenCalled();
       expect(result).toHaveProperty('id');
     });
 
-    it('throws ConflictException if review already submitted', async () => {
+    it('updates draft: deletes old scores and saves new ones', async () => {
+      const criteria = [{ id: 1 }] as ScreeningCriteria[];
+      const existingDraft = {
+        id: 88,
+        status: ScreeningReviewStatus.DRAFT,
+        scores: [],
+      } as unknown as ScreeningReview;
+      assignmentRepo.findOne!.mockResolvedValue({ ...baseAssignment });
+      screeningReviewRepo.findOne!.mockResolvedValue(existingDraft);
+      screeningCriteriaRepo.findBy!.mockResolvedValue(criteria);
+      screeningReviewScoreRepo.delete!.mockResolvedValue(undefined);
+      screeningReviewScoreRepo.create!.mockImplementation((d) => d);
+      screeningReviewScoreRepo.save!.mockResolvedValue([]);
+
+      const result = await service.saveScreeningReview(
+        { assignmentId: 10, scores: [{ criteriaId: 1, score: 2 }] },
+        recruiter,
+      );
+
+      expect(screeningReviewScoreRepo.delete).toHaveBeenCalledWith({
+        review: { id: 88 },
+      });
+      expect(screeningReviewScoreRepo.save).toHaveBeenCalled();
+      expect(result).toEqual({ id: 88 });
+    });
+
+    it('throws ConflictException if review is already SUBMITTED', async () => {
       assignmentRepo.findOne!.mockResolvedValue({ ...baseAssignment });
       screeningReviewRepo.findOne!.mockResolvedValue({
         id: 88,
-      } as ScreeningReview);
+        status: ScreeningReviewStatus.SUBMITTED,
+        scores: [],
+      } as unknown as ScreeningReview);
 
       await expect(
-        service.submitScreeningReview(
+        service.saveScreeningReview(
           { assignmentId: 10, scores: [] },
           recruiter,
         ),
@@ -336,80 +387,11 @@ describe('RecruitersReviewService', () => {
       assignmentRepo.findOne!.mockResolvedValue(null);
 
       await expect(
-        service.submitScreeningReview(
+        service.saveScreeningReview(
           { assignmentId: 99, scores: [] },
           recruiter,
         ),
       ).rejects.toThrow(NotFoundException);
-    });
-
-    it('advances application to AWAITING_ADMIN when all assignments reviewed', async () => {
-      const criteria = [{ id: 1 }] as ScreeningCriteria[];
-      assignmentRepo.findOne!.mockResolvedValue({ ...baseAssignment });
-      screeningReviewRepo.findOne!.mockResolvedValue(null);
-      screeningCriteriaRepo.findBy!.mockResolvedValue(criteria);
-      screeningReviewRepo.create!.mockImplementation((d) => ({
-        id: 100,
-        ...d,
-      }));
-      screeningReviewRepo.save!.mockImplementation((r) => Promise.resolve(r));
-      screeningReviewScoreRepo.create!.mockImplementation((d) => d);
-      screeningReviewScoreRepo.save!.mockResolvedValue([]);
-
-      // All assignments now have reviews
-      assignmentRepo.find!.mockResolvedValue([baseAssignment]);
-      screeningReviewRepo.count!.mockResolvedValue(1); // count equals assignments.length
-
-      const mockApp = {
-        id: 5,
-        roundStatus: RoundStatus.IN_PROGRESS,
-      } as Application;
-      applicationRepo.findOneByOrFail!.mockResolvedValue(mockApp);
-      applicationRepo.save!.mockResolvedValue({
-        ...mockApp,
-        roundStatus: RoundStatus.AWAITING_ADMIN,
-      });
-
-      await service.submitScreeningReview(
-        { assignmentId: 10, scores: [{ criteriaId: 1, score: 1 }] },
-        recruiter,
-      );
-
-      expect(applicationRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ roundStatus: RoundStatus.AWAITING_ADMIN }),
-      );
-    });
-
-    it('does not advance application when some assignments still have no review', async () => {
-      const criteria = [{ id: 1 }] as ScreeningCriteria[];
-      const secondAssignment = {
-        id: 11,
-        application: baseAssignment.application,
-      } as Assignment;
-      assignmentRepo.findOne!.mockResolvedValue({ ...baseAssignment });
-      screeningReviewRepo.findOne!.mockResolvedValue(null);
-      screeningCriteriaRepo.findBy!.mockResolvedValue(criteria);
-      screeningReviewRepo.create!.mockImplementation((d) => ({
-        id: 100,
-        ...d,
-      }));
-      screeningReviewRepo.save!.mockImplementation((r) => Promise.resolve(r));
-      screeningReviewScoreRepo.create!.mockImplementation((d) => d);
-      screeningReviewScoreRepo.save!.mockResolvedValue([]);
-
-      // 2 assignments but only 1 review (the one just submitted)
-      assignmentRepo.find!.mockResolvedValue([
-        baseAssignment,
-        secondAssignment,
-      ]);
-      screeningReviewRepo.count!.mockResolvedValue(1);
-
-      await service.submitScreeningReview(
-        { assignmentId: 10, scores: [{ criteriaId: 1, score: 1 }] },
-        recruiter,
-      );
-
-      expect(applicationRepo.save).not.toHaveBeenCalled();
     });
 
     it('throws BadRequestException if a criteria ID does not exist', async () => {
@@ -421,7 +403,7 @@ describe('RecruitersReviewService', () => {
       ] as ScreeningCriteria[]);
 
       await expect(
-        service.submitScreeningReview(
+        service.saveScreeningReview(
           {
             assignmentId: 10,
             scores: [
@@ -432,6 +414,138 @@ describe('RecruitersReviewService', () => {
           recruiter,
         ),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('does NOT call checkScreeningCompletion (save does not finalize)', async () => {
+      const criteria = [{ id: 1 }] as ScreeningCriteria[];
+      assignmentRepo.findOne!.mockResolvedValue({ ...baseAssignment });
+      screeningReviewRepo.findOne!.mockResolvedValue(null);
+      screeningCriteriaRepo.findBy!.mockResolvedValue(criteria);
+      screeningReviewRepo.create!.mockImplementation((d) => ({ id: 99, ...d }));
+      screeningReviewRepo.save!.mockImplementation((r) => Promise.resolve(r));
+      screeningReviewScoreRepo.create!.mockImplementation((d) => d);
+      screeningReviewScoreRepo.save!.mockResolvedValue([]);
+
+      await service.saveScreeningReview(
+        { assignmentId: 10, scores: [{ criteriaId: 1, score: 1 }] },
+        recruiter,
+      );
+
+      // checkScreeningCompletion calls assignmentRepo.find and screeningReviewRepo.count
+      // but they should NOT be called since save draft skips completion check
+      expect(applicationRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────
+  // submitScreeningReview
+  // ──────────────────────────────────────────────────────────────────────
+  describe('submitScreeningReview', () => {
+    const baseAssignment = {
+      id: 10,
+      recruiter: { id: 1 } as Recruiter,
+      application: { id: 5, round: ApplicationRound.SCREENING } as Application,
+    } as unknown as Assignment;
+
+    const makeDraftReview = () =>
+      ({
+        id: 99,
+        status: ScreeningReviewStatus.DRAFT,
+        assignment: baseAssignment,
+      } as unknown as ScreeningReview);
+
+    it('sets status to SUBMITTED and calls checkScreeningCompletion', async () => {
+      const review = makeDraftReview();
+      screeningReviewRepo.findOne!.mockResolvedValue(review);
+      screeningReviewRepo.save!.mockImplementation((r) => Promise.resolve(r));
+      // checkScreeningCompletion
+      assignmentRepo.find!.mockResolvedValue([baseAssignment]);
+      screeningReviewRepo.count!.mockResolvedValue(0); // not all done yet
+
+      const result = await service.submitScreeningReview(99, recruiter);
+
+      expect(screeningReviewRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ScreeningReviewStatus.SUBMITTED }),
+      );
+      expect(result).toEqual({ id: 99 });
+    });
+
+    it('advances application to AWAITING_ADMIN when all assignments have submitted reviews', async () => {
+      const review = makeDraftReview();
+      screeningReviewRepo.findOne!.mockResolvedValue(review);
+      screeningReviewRepo.save!.mockImplementation((r) => Promise.resolve(r));
+      assignmentRepo.find!.mockResolvedValue([baseAssignment]);
+      screeningReviewRepo.count!.mockResolvedValue(1); // all submitted
+
+      const mockApp = {
+        id: 5,
+        roundStatus: RoundStatus.IN_PROGRESS,
+      } as Application;
+      applicationRepo.findOneByOrFail!.mockResolvedValue(mockApp);
+      applicationRepo.save!.mockImplementation((r) => Promise.resolve(r));
+
+      await service.submitScreeningReview(99, recruiter);
+
+      expect(applicationRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ roundStatus: RoundStatus.AWAITING_ADMIN }),
+      );
+    });
+
+    it('does not advance application when some assignments still lack submitted reviews', async () => {
+      const secondAssignment = { id: 11 } as Assignment;
+      const review = makeDraftReview();
+      screeningReviewRepo.findOne!.mockResolvedValue(review);
+      screeningReviewRepo.save!.mockImplementation((r) => Promise.resolve(r));
+      assignmentRepo.find!.mockResolvedValue([
+        baseAssignment,
+        secondAssignment,
+      ]);
+      screeningReviewRepo.count!.mockResolvedValue(1); // only 1 of 2
+
+      await service.submitScreeningReview(99, recruiter);
+
+      expect(applicationRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('throws ConflictException if review is not in DRAFT state', async () => {
+      screeningReviewRepo.findOne!.mockResolvedValue({
+        id: 99,
+        status: ScreeningReviewStatus.SUBMITTED,
+        assignment: baseAssignment,
+      } as unknown as ScreeningReview);
+
+      await expect(
+        service.submitScreeningReview(99, recruiter),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('throws NotFoundException if review not found', async () => {
+      screeningReviewRepo.findOne!.mockResolvedValue(null);
+
+      await expect(
+        service.submitScreeningReview(999, recruiter),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException if recruiter does not own the assignment', async () => {
+      const otherRecruiter = { id: 99 } as Recruiter;
+      const otherAssignment = {
+        id: 10,
+        recruiter: otherRecruiter,
+        application: {
+          id: 5,
+          round: ApplicationRound.SCREENING,
+        } as Application,
+      } as unknown as Assignment;
+      screeningReviewRepo.findOne!.mockResolvedValue({
+        id: 99,
+        status: ScreeningReviewStatus.DRAFT,
+        assignment: otherAssignment,
+      } as unknown as ScreeningReview);
+
+      await expect(
+        service.submitScreeningReview(99, recruiter),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -1010,14 +1124,16 @@ describe('RecruitersReviewService', () => {
       expect(result.assignmentId).toBe(5);
       expect(result.notes).toBe('some notes');
       expect(result.reviewStatus).toBe('not_started');
+      expect(result.reviewId).toBeNull();
       expect(result.rubricCriteria).toHaveLength(1);
       expect(result.rubricCriteria[0].name).toBe('Skill');
     });
 
-    it('returns reviewStatus "submitted" when screening review exists', async () => {
+    it('returns reviewStatus "submitted" and reviewId when SUBMITTED review exists', async () => {
       assignmentRepo.findOne!.mockResolvedValue(mockAssignment);
       screeningReviewRepo.findOne!.mockResolvedValue({
         id: 7,
+        status: ScreeningReviewStatus.SUBMITTED,
         scores: [],
       } as unknown as ScreeningReview);
       screeningRubricRepo.find!.mockResolvedValue([]);
@@ -1025,6 +1141,22 @@ describe('RecruitersReviewService', () => {
       const result = await service.getAssignmentDetail(5, recruiter);
 
       expect(result.reviewStatus).toBe('submitted');
+      expect(result.reviewId).toBe(7);
+    });
+
+    it('returns reviewStatus "draft" and reviewId when DRAFT review exists', async () => {
+      assignmentRepo.findOne!.mockResolvedValue(mockAssignment);
+      screeningReviewRepo.findOne!.mockResolvedValue({
+        id: 42,
+        status: ScreeningReviewStatus.DRAFT,
+        scores: [],
+      } as unknown as ScreeningReview);
+      screeningRubricRepo.find!.mockResolvedValue([]);
+
+      const result = await service.getAssignmentDetail(5, recruiter);
+
+      expect(result.reviewStatus).toBe('draft');
+      expect(result.reviewId).toBe(42);
     });
   });
 
@@ -1073,20 +1205,48 @@ describe('RecruitersReviewService', () => {
       expect(result[1].recruiterName).toBe('Bob Jones');
     });
 
-    it('sets reviewStatus "submitted" for assignments with a screening review', async () => {
+    it('sets reviewStatus "submitted" for assignments with a SUBMITTED screening review', async () => {
       assignmentRepo.findOne!.mockResolvedValue(makeCallerAssignment(1));
       assignmentRepo.find!.mockResolvedValue([
         makeReviewerAssignment(1, 'Alice', 'Smith'),
         makeReviewerAssignment(2, 'Bob', 'Jones'),
       ]);
       screeningReviewRepo.find!.mockResolvedValue([
-        { id: 99, assignment: { id: 1 } } as unknown as ScreeningReview,
+        {
+          id: 99,
+          assignment: { id: 1 },
+          status: ScreeningReviewStatus.SUBMITTED,
+        } as unknown as ScreeningReview,
       ]);
 
       const result = await service.getCoReviewers(5, recruiter);
 
       expect(result.find((r) => r.assignmentId === 1)?.reviewStatus).toBe(
         'submitted',
+      );
+      expect(result.find((r) => r.assignmentId === 2)?.reviewStatus).toBe(
+        'not_started',
+      );
+    });
+
+    it('sets reviewStatus "draft" for assignments with a DRAFT screening review', async () => {
+      assignmentRepo.findOne!.mockResolvedValue(makeCallerAssignment(1));
+      assignmentRepo.find!.mockResolvedValue([
+        makeReviewerAssignment(1, 'Alice', 'Smith'),
+        makeReviewerAssignment(2, 'Bob', 'Jones'),
+      ]);
+      screeningReviewRepo.find!.mockResolvedValue([
+        {
+          id: 99,
+          assignment: { id: 1 },
+          status: ScreeningReviewStatus.DRAFT,
+        } as unknown as ScreeningReview,
+      ]);
+
+      const result = await service.getCoReviewers(5, recruiter);
+
+      expect(result.find((r) => r.assignmentId === 1)?.reviewStatus).toBe(
+        'draft',
       );
       expect(result.find((r) => r.assignmentId === 2)?.reviewStatus).toBe(
         'not_started',
@@ -1189,13 +1349,15 @@ describe('RecruitersReviewService', () => {
       expect(result.data[0].assignmentId).toBe(1);
     });
 
-    it('returns reviewStatus "submitted" when screening review exists', async () => {
+    it('returns reviewStatus "submitted" when screening review is SUBMITTED', async () => {
       const completed = makeCompletedAssignment(1);
       assignmentRepo.findAndCount!.mockResolvedValue([[completed], 1]);
-      screeningReviewRepo.find!.mockResolvedValue([]);
-      screeningReviewRepo.findOne!.mockResolvedValue({
-        id: 99,
-      } as unknown as ScreeningReview);
+      screeningReviewRepo.find!.mockResolvedValue([
+        {
+          assignment: { id: 1 },
+          status: ScreeningReviewStatus.SUBMITTED,
+        } as unknown as ScreeningReview,
+      ]);
 
       const result = await service.listCompletedAssignments(recruiter, 1, 20);
 
@@ -1206,7 +1368,6 @@ describe('RecruitersReviewService', () => {
       const completed = makeCompletedAssignment(1);
       assignmentRepo.findAndCount!.mockResolvedValue([[completed], 1]);
       screeningReviewRepo.find!.mockResolvedValue([]);
-      screeningReviewRepo.findOne!.mockResolvedValue(null);
 
       const result = await service.listCompletedAssignments(recruiter, 1, 20);
 
@@ -1239,7 +1400,7 @@ describe('RecruitersReviewService', () => {
       expect(result.data).toHaveLength(1); // page 2 of 2, only 1 item left
     });
 
-    it('includes assignment in completed when review was submitted (same round, no terminal)', async () => {
+    it('includes assignment in completed when SUBMITTED review exists (same round, no terminal)', async () => {
       const assignmentWithReview = {
         id: 5,
         round: ApplicationRound.SCREENING,
@@ -1254,19 +1415,48 @@ describe('RecruitersReviewService', () => {
         [assignmentWithReview],
         1,
       ]);
-      // Batch-load returns a review for assignment 5
+      // Batch-load returns a SUBMITTED review for assignment 5
       screeningReviewRepo.find!.mockResolvedValue([
-        { assignment: { id: 5 } } as unknown as ScreeningReview,
+        {
+          assignment: { id: 5 },
+          status: ScreeningReviewStatus.SUBMITTED,
+        } as unknown as ScreeningReview,
       ]);
-      screeningReviewRepo.findOne!.mockResolvedValue({
-        id: 10,
-      } as unknown as ScreeningReview);
 
       const result = await service.listCompletedAssignments(recruiter, 1, 20);
 
       expect(result.total).toBe(1);
       expect(result.data[0].assignmentId).toBe(5);
       expect(result.data[0].reviewStatus).toBe('submitted');
+    });
+
+    it('keeps assignment active (not completed) when only DRAFT review exists', async () => {
+      const assignmentWithDraft = {
+        id: 5,
+        round: ApplicationRound.SCREENING,
+        application: {
+          id: 50,
+          round: ApplicationRound.SCREENING,
+          finalDecision: null,
+          applicant: { name: 'Sam Lee' },
+        },
+      };
+      assignmentRepo.findAndCount!.mockResolvedValue([
+        [assignmentWithDraft],
+        1,
+      ]);
+      // Batch-load returns only a DRAFT review → should NOT be in completed
+      screeningReviewRepo.find!.mockResolvedValue([
+        {
+          assignment: { id: 5 },
+          status: ScreeningReviewStatus.DRAFT,
+        } as unknown as ScreeningReview,
+      ]);
+
+      const result = await service.listCompletedAssignments(recruiter, 1, 20);
+
+      expect(result.total).toBe(0);
+      expect(result.data).toHaveLength(0);
     });
 
     it('includes assignment in completed when app has terminal decision', async () => {
@@ -1368,8 +1558,7 @@ describe('RecruitersReviewService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('returns detail when review is submitted (same round counts as completed)', async () => {
-      // Same round, but review was submitted → allowed to view
+    it('throws BadRequestException when only a DRAFT review exists (still active)', async () => {
       const assignment = makeAssignment({
         round: ApplicationRound.SCREENING,
         appRound: ApplicationRound.SCREENING,
@@ -1379,6 +1568,27 @@ describe('RecruitersReviewService', () => {
       );
       screeningReviewRepo.findOne!.mockResolvedValue({
         id: 7,
+        status: ScreeningReviewStatus.DRAFT,
+        scores: [],
+      } as unknown as ScreeningReview);
+
+      await expect(
+        service.getCompletedAssignmentDetail(10, recruiter),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('returns detail when SUBMITTED review exists (same round counts as completed)', async () => {
+      // Same round, but review was SUBMITTED → allowed to view
+      const assignment = makeAssignment({
+        round: ApplicationRound.SCREENING,
+        appRound: ApplicationRound.SCREENING,
+      });
+      assignmentRepo.findOne!.mockResolvedValue(
+        assignment as unknown as Assignment,
+      );
+      screeningReviewRepo.findOne!.mockResolvedValue({
+        id: 7,
+        status: ScreeningReviewStatus.SUBMITTED,
         scores: [],
       } as unknown as ScreeningReview);
 
@@ -1405,13 +1615,14 @@ describe('RecruitersReviewService', () => {
       expect(result.assignmentId).toBe(10);
     });
 
-    it('returns detail with rubricCriteria when review is submitted (round advanced)', async () => {
+    it('returns detail with rubricCriteria when SUBMITTED review exists (round advanced)', async () => {
       const assignment = makeAssignment();
       assignmentRepo.findOne!.mockResolvedValue(
         assignment as unknown as Assignment,
       );
       screeningReviewRepo.findOne!.mockResolvedValue({
         id: 7,
+        status: ScreeningReviewStatus.SUBMITTED,
         scores: [
           {
             score: 2,

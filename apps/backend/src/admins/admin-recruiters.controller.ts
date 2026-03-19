@@ -35,11 +35,7 @@ export class AdminRecruitersController {
   @Post('invite')
   @Auth(Role.ADMIN)
   inviteRecruiter(@Body() dto: InviteRecruiterDto) {
-    return this.adminRecruitersService.inviteRecruiter(
-      dto.firstName,
-      dto.lastName,
-      dto.email,
-    );
+    return this.adminRecruitersService.inviteRecruiter(dto.email);
   }
 
   @Get(':id')

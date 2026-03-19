@@ -1,6 +1,8 @@
 import {
   ConflictException,
   Injectable,
+  InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -17,6 +19,8 @@ import { ApplicationRound } from '../applications/enums/application-round.enum';
 
 @Injectable()
 export class AdminRecruitersService {
+  private readonly logger = new Logger(AdminRecruitersService.name);
+
   constructor(
     @InjectRepository(Recruiter)
     private readonly recruiterRepo: Repository<Recruiter>,
@@ -45,25 +49,32 @@ export class AdminRecruitersService {
     };
   }
 
-  async inviteRecruiter(
-    firstName: string,
-    lastName: string,
-    email: string,
-  ): Promise<Recruiter> {
+  async inviteRecruiter(email: string): Promise<Recruiter> {
     const existing = await this.userRepo.findOneBy({ email });
     if (existing) {
       throw new ConflictException('A user with this email already exists');
     }
 
     const recruiter = this.recruiterRepo.create({
-      firstName,
-      lastName,
+      firstName: null,
+      lastName: null,
       email,
       accountStatus: AccountStatus.INVITE_SENT,
     });
     await this.recruiterRepo.save(recruiter);
 
-    await this.cognitoService.adminCreateUser(email);
+    try {
+      await this.cognitoService.adminCreateUser(email);
+    } catch (error) {
+      await this.recruiterRepo.remove(recruiter);
+      this.logger.error(
+        `Cognito invite failed for ${email}, rolled back DB row`,
+        error,
+      );
+      throw new InternalServerErrorException(
+        'Failed to create login credentials. Please try again.',
+      );
+    }
 
     return recruiter;
   }

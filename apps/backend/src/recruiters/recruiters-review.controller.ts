@@ -121,11 +121,20 @@ export class RecruitersReviewController {
 
   @Post('reviews/screening')
   @Auth(Role.RECRUITER)
-  submitScreeningReview(
+  saveScreeningReview(
     @Body() dto: SaveScreeningReviewDto,
     @ReqUser() user: Recruiter,
   ) {
-    return this.reviewService.submitScreeningReview(dto, user);
+    return this.reviewService.saveScreeningReview(dto, user);
+  }
+
+  @Patch('reviews/screening/:id/submit')
+  @Auth(Role.RECRUITER)
+  submitScreeningReview(
+    @Param('id', ParseIntPipe) id: number,
+    @ReqUser() user: Recruiter,
+  ) {
+    return this.reviewService.submitScreeningReview(id, user);
   }
 
   @Post('reviews/interview')

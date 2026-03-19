@@ -120,8 +120,8 @@ const RecruiterManagementPage: React.FC = () => {
     showSnackbar(`Invite sent to ${email}`, 'success');
   };
 
-  const handleInviteError = () => {
-    showSnackbar('Failed to send invite. Please try again.', 'error');
+  const handleInviteError = (message: string) => {
+    showSnackbar(message, 'error');
   };
 
   return (
@@ -205,7 +205,17 @@ const RecruiterManagementPage: React.FC = () => {
                     }
                   >
                     <TableCell>
-                      {recruiter.firstName} {recruiter.lastName}
+                      {recruiter.firstName && recruiter.lastName ? (
+                        `${recruiter.firstName} ${recruiter.lastName}`
+                      ) : (
+                        <Typography
+                          component="span"
+                          variant="body2"
+                          sx={{ color: 'text.secondary', fontStyle: 'italic' }}
+                        >
+                          Pending Setup
+                        </Typography>
+                      )}
                     </TableCell>
                     <TableCell>{recruiter.email}</TableCell>
                     <TableCell>

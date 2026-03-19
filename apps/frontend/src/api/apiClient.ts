@@ -45,8 +45,6 @@ export interface RecruiterListResponse {
 }
 
 export interface InviteRecruiterRequest {
-  firstName: string;
-  lastName: string;
   email: string;
 }
 
@@ -88,6 +86,13 @@ export class ApiClient {
 
   public async getMe(): Promise<User> {
     return this.get('/api/auth/me') as Promise<User>;
+  }
+
+  public async updateProfile(dto: {
+    firstName?: string;
+    lastName?: string;
+  }): Promise<User> {
+    return this.patch('/api/auth/profile', dto) as Promise<User>;
   }
 
   public async getRecruiters(
@@ -223,13 +228,22 @@ export class ApiClient {
     }) as Promise<{ assignmentId: number; notes: string | null }>;
   }
 
-  public async submitScreeningReview(dto: {
+  public async saveScreeningReview(dto: {
     assignmentId: number;
     scores: { criteriaId: number; score: number }[];
   }): Promise<{ id: number }> {
     return this.post('/api/recruiter/reviews/screening', dto) as Promise<{
       id: number;
     }>;
+  }
+
+  public async submitScreeningReview(
+    reviewId: number,
+  ): Promise<{ id: number }> {
+    return this.patch(
+      `/api/recruiter/reviews/screening/${reviewId}/submit`,
+      {},
+    ) as Promise<{ id: number }>;
   }
 
   public async addReviewer(

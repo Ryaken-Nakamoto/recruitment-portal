@@ -19,6 +19,10 @@ vi.mock('@api/apiClient', () => ({
   default: {
     getApplications: vi.fn(),
     bulkDecide: vi.fn().mockResolvedValue({ succeeded: [], failed: [] }),
+    bulkSendEmails: vi.fn().mockResolvedValue({ succeeded: [], failed: [] }),
+    bulkRevertToPendingAdmin: vi
+      .fn()
+      .mockResolvedValue({ succeeded: [], failed: [] }),
   },
 }));
 
@@ -372,5 +376,176 @@ describe('AWAITING_ADMIN tab features', () => {
 
     await screen.findByText('No applications found');
     expect(screen.queryByText('Avg Score')).toBeNull();
+  });
+});
+
+describe('Select Top K feature', () => {
+  const awaitingAdminData = {
+    data: [
+      {
+        id: 1,
+        round: ApplicationRound.SCREENING,
+        roundStatus: RoundStatus.AWAITING_ADMIN,
+        finalDecision: null,
+        submittedAt: '2026-03-01T10:00:00Z',
+        applicant: {
+          id: 1,
+          name: 'Alice Smith',
+          email: 'alice@example.com',
+          major: 'CS',
+          academicYear: AcademicYear.FIRST,
+          graduationYear: null,
+        },
+        reviewsSubmitted: 2,
+        reviewsTotal: 2,
+        averageScore: 3.5,
+      },
+    ],
+    total: 5,
+    page: 1,
+    totalPages: 1,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetApplications.mockResolvedValue(awaitingAdminData);
+    mockBulkDecide.mockResolvedValue({ succeeded: [1], failed: [] });
+  });
+
+  async function renderAndNavigateToAwaitingAdmin() {
+    render(
+      <MemoryRouter>
+        <QueryClientProvider client={createQueryClient()}>
+          <ApplicationsPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByText('Awaiting Admin'));
+    await screen.findByText('Alice Smith');
+  }
+
+  it('does not render Select Top textbox on Pending tab', async () => {
+    mockGetApplications.mockResolvedValue({
+      data: [],
+      total: 0,
+      page: 1,
+      totalPages: 0,
+    });
+
+    render(
+      <MemoryRouter>
+        <QueryClientProvider client={createQueryClient()}>
+          <ApplicationsPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+
+    await screen.findByText('No applications found');
+    expect(screen.queryByLabelText('Select Top:')).toBeNull();
+  });
+
+  it('renders Select Top textbox on Awaiting Admin tab', async () => {
+    await renderAndNavigateToAwaitingAdmin();
+    expect(screen.getByLabelText('Select Top:')).toBeTruthy();
+  });
+
+  it('shows error for input = 0', async () => {
+    await renderAndNavigateToAwaitingAdmin();
+    const input = screen.getByLabelText('Select Top:');
+    fireEvent.change(input, { target: { value: '0' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(await screen.findByText('Must be a positive number')).toBeTruthy();
+  });
+
+  it('shows error for input greater than total', async () => {
+    await renderAndNavigateToAwaitingAdmin();
+    const input = screen.getByLabelText('Select Top:');
+    fireEvent.change(input, { target: { value: '10' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(
+      await screen.findByText('Must be ≤ 5 (total awaiting admin apps)'),
+    ).toBeTruthy();
+  });
+
+  it('calls getApplications with correct args and sets selectedIds on valid Enter', async () => {
+    const topKData = {
+      data: [
+        {
+          ...awaitingAdminData.data[0],
+          id: 2,
+          applicant: {
+            ...awaitingAdminData.data[0].applicant,
+            name: 'Bob Jones',
+            email: 'bob@example.com',
+          },
+        },
+        {
+          ...awaitingAdminData.data[0],
+          id: 3,
+          applicant: {
+            ...awaitingAdminData.data[0].applicant,
+            name: 'Carol Lee',
+            email: 'carol@example.com',
+          },
+        },
+      ],
+      total: 5,
+      page: 1,
+      totalPages: 1,
+    };
+    // Calls: (1) PENDING tab initial render, (2) AWAITING_ADMIN tab render, (3) Select Top fetch
+    mockGetApplications
+      .mockResolvedValueOnce({ data: [], total: 0, page: 1, totalPages: 0 })
+      .mockResolvedValueOnce(awaitingAdminData)
+      .mockResolvedValueOnce(topKData);
+
+    await renderAndNavigateToAwaitingAdmin();
+
+    const input = screen.getByLabelText('Select Top:');
+    fireEvent.change(input, { target: { value: '2' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(mockGetApplications).toHaveBeenCalledWith(
+        1,
+        2,
+        RoundStatus.AWAITING_ADMIN,
+        'desc',
+      );
+    });
+
+    // BulkActionBar should show 2 selected
+    expect(await screen.findByText('2 selected')).toBeTruthy();
+  });
+
+  it('resets input and error when switching tabs', async () => {
+    await renderAndNavigateToAwaitingAdmin();
+
+    const input = screen.getByLabelText('Select Top:');
+    fireEvent.change(input, { target: { value: '0' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(await screen.findByText('Must be a positive number')).toBeTruthy();
+
+    // Switch to Pending tab
+    mockGetApplications.mockResolvedValue({
+      data: [],
+      total: 0,
+      page: 1,
+      totalPages: 0,
+    });
+    fireEvent.click(screen.getByText('Pending'));
+
+    await screen.findByText('No applications found');
+    expect(screen.queryByLabelText('Select Top:')).toBeNull();
+
+    // Switch back — textbox should have no error
+    mockGetApplications.mockResolvedValue(awaitingAdminData);
+    fireEvent.click(screen.getByText('Awaiting Admin'));
+    await screen.findByText('Alice Smith');
+
+    expect(screen.queryByText('Must be a positive number')).toBeNull();
+    expect(
+      (screen.getByLabelText('Select Top:') as HTMLInputElement).value,
+    ).toBe('');
   });
 });

@@ -119,13 +119,13 @@ describe('AdminAssignmentsService', () => {
       },
     ] as Application[];
 
-    it('returns all applications when no round is specified', async () => {
+    it('returns applications with PENDING or IN_PROGRESS status when no round is specified', async () => {
       applicationRepo.find.mockResolvedValue(mockApps);
 
       const result = await service.listApplicationsByRound();
 
       expect(applicationRepo.find).toHaveBeenCalledWith({
-        where: {},
+        where: { roundStatus: expect.anything() },
         relations: ['applicant'],
       });
       expect(result).toHaveLength(2);
@@ -137,7 +137,7 @@ describe('AdminAssignmentsService', () => {
       });
     });
 
-    it('filters applications by round when round is provided', async () => {
+    it('filters applications by round and status when round is provided', async () => {
       applicationRepo.find.mockResolvedValue([mockApps[0]]);
 
       const result = await service.listApplicationsByRound(
@@ -145,7 +145,55 @@ describe('AdminAssignmentsService', () => {
       );
 
       expect(applicationRepo.find).toHaveBeenCalledWith({
-        where: { round: ApplicationRound.SCREENING },
+        where: {
+          round: ApplicationRound.SCREENING,
+          roundStatus: expect.anything(),
+        },
+        relations: ['applicant'],
+      });
+      expect(result).toHaveLength(1);
+    });
+
+    it('excludes IN_PROGRESS, AWAITING_ADMIN, PENDING_EMAIL, and EMAIL_SENT applications', async () => {
+      const allApps = [
+        {
+          id: 1,
+          round: ApplicationRound.SCREENING,
+          roundStatus: RoundStatus.PENDING,
+          applicant: { name: 'Alice' },
+        },
+        {
+          id: 2,
+          round: ApplicationRound.SCREENING,
+          roundStatus: RoundStatus.IN_PROGRESS,
+          applicant: { name: 'Bob' },
+        },
+        {
+          id: 3,
+          round: ApplicationRound.SCREENING,
+          roundStatus: RoundStatus.AWAITING_ADMIN,
+          applicant: { name: 'Carol' },
+        },
+        {
+          id: 4,
+          round: ApplicationRound.SCREENING,
+          roundStatus: RoundStatus.PENDING_EMAIL,
+          applicant: { name: 'Dave' },
+        },
+      ] as Application[];
+      // Only PENDING applications are returned
+      applicationRepo.find.mockResolvedValue([allApps[0]]);
+
+      const result = await service.listApplicationsByRound(
+        ApplicationRound.SCREENING,
+      );
+
+      // Verify that the where clause filtered to PENDING only
+      expect(applicationRepo.find).toHaveBeenCalledWith({
+        where: {
+          round: ApplicationRound.SCREENING,
+          roundStatus: RoundStatus.PENDING,
+        },
         relations: ['applicant'],
       });
       expect(result).toHaveLength(1);
@@ -183,27 +231,9 @@ describe('AdminAssignmentsService', () => {
   });
 
   describe('assignRecruiters', () => {
-    it('throws BadRequestException when applicationIds is empty', async () => {
-      await expect(service.assignRecruiters([], [1, 2], 1)).rejects.toThrow(
+    it('throws BadRequestException when pairs is empty', async () => {
+      await expect(service.assignRecruiters([])).rejects.toThrow(
         BadRequestException,
-      );
-    });
-
-    it('throws BadRequestException when recruiterIds is empty', async () => {
-      await expect(service.assignRecruiters([1], [], 1)).rejects.toThrow(
-        BadRequestException,
-      );
-    });
-
-    it('throws BadRequestException when recruitersPerApp is less than 1', async () => {
-      await expect(service.assignRecruiters([1], [1, 2], 0)).rejects.toThrow(
-        BadRequestException,
-      );
-    });
-
-    it('throws BadRequestException when recruitersPerApp exceeds recruiterIds length', async () => {
-      await expect(service.assignRecruiters([1], [1], 2)).rejects.toThrow(
-        new BadRequestException('Not enough recruiters selected'),
       );
     });
 
@@ -211,17 +241,17 @@ describe('AdminAssignmentsService', () => {
       recruiterRepo.findBy.mockResolvedValue([{ id: 1 }] as Recruiter[]);
       applicationRepo.findBy.mockResolvedValue([]);
 
-      await expect(service.assignRecruiters([99], [1], 1)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.assignRecruiters([{ appId: 99, recruiterIds: [1] }]),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('throws NotFoundException when a recruiter ID is invalid', async () => {
       recruiterRepo.findBy.mockResolvedValue([]);
 
-      await expect(service.assignRecruiters([1], [99], 1)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.assignRecruiters([{ appId: 1, recruiterIds: [99] }]),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('throws BadRequestException when any selected app has roundStatus PENDING_EMAIL', async () => {
@@ -234,7 +264,9 @@ describe('AdminAssignmentsService', () => {
         },
       ] as Application[]);
 
-      const err = await service.assignRecruiters([10], [1], 1).catch((e) => e);
+      const err = await service
+        .assignRecruiters([{ appId: 10, recruiterIds: [1] }])
+        .catch((e) => e);
       expect(err).toBeInstanceOf(BadRequestException);
       expect((err as BadRequestException).getResponse()).toMatchObject({
         blockedAppIds: [10],
@@ -251,14 +283,55 @@ describe('AdminAssignmentsService', () => {
         },
       ] as Application[]);
 
-      const err = await service.assignRecruiters([10], [1], 1).catch((e) => e);
+      const err = await service
+        .assignRecruiters([{ appId: 10, recruiterIds: [1] }])
+        .catch((e) => e);
       expect(err).toBeInstanceOf(BadRequestException);
       expect((err as BadRequestException).getResponse()).toMatchObject({
         blockedAppIds: [10],
       });
     });
 
-    it('creates new assignments with round-robin distribution and sets round field', async () => {
+    it('throws BadRequestException when any selected app has roundStatus AWAITING_ADMIN', async () => {
+      recruiterRepo.findBy.mockResolvedValue([{ id: 1 }] as Recruiter[]);
+      applicationRepo.findBy.mockResolvedValue([
+        {
+          id: 10,
+          round: ApplicationRound.SCREENING,
+          roundStatus: RoundStatus.AWAITING_ADMIN,
+        },
+      ] as Application[]);
+
+      const err = await service
+        .assignRecruiters([{ appId: 10, recruiterIds: [1] }])
+        .catch((e) => e);
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toMatchObject({
+        blockedAppIds: [10],
+      });
+    });
+
+    it('throws BadRequestException when any selected app has roundStatus IN_PROGRESS', async () => {
+      recruiterRepo.findBy.mockResolvedValue([{ id: 1 }] as Recruiter[]);
+      applicationRepo.findBy.mockResolvedValue([
+        {
+          id: 10,
+          round: ApplicationRound.SCREENING,
+          roundStatus: RoundStatus.IN_PROGRESS,
+        },
+      ] as Application[]);
+
+      const err = await service
+        .assignRecruiters([{ appId: 10, recruiterIds: [1] }])
+        .catch((e) => e);
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toMatchObject({
+        blockedAppIds: [10],
+        message: expect.stringContaining('must be in PENDING status'),
+      });
+    });
+
+    it('creates assignments with correct recruiter IDs from pairs', async () => {
       const recruiters = [{ id: 1 }, { id: 2 }, { id: 3 }] as Recruiter[];
       const applications = [
         {
@@ -279,7 +352,10 @@ describe('AdminAssignmentsService', () => {
       assignmentRepo.create.mockImplementation((data) => data as Assignment);
       assignmentRepo.save.mockResolvedValue({} as Assignment);
 
-      const result = await service.assignRecruiters([10, 11], [1, 2, 3], 2);
+      const result = await service.assignRecruiters([
+        { appId: 10, recruiterIds: [1, 2] },
+        { appId: 11, recruiterIds: [3, 1] },
+      ]);
 
       expect(assignmentRepo.create).toHaveBeenCalledTimes(4);
       // Verify round is set on each created assignment
@@ -296,7 +372,7 @@ describe('AdminAssignmentsService', () => {
         {
           id: 10,
           round: ApplicationRound.SCREENING,
-          roundStatus: RoundStatus.IN_PROGRESS,
+          roundStatus: RoundStatus.PENDING,
         },
       ] as Application[];
 
@@ -313,7 +389,9 @@ describe('AdminAssignmentsService', () => {
       assignmentRepo.create.mockImplementation((data) => data as Assignment);
       assignmentRepo.save.mockResolvedValue({} as Assignment);
 
-      const result = await service.assignRecruiters([10], [1, 2], 2);
+      const result = await service.assignRecruiters([
+        { appId: 10, recruiterIds: [1, 2] },
+      ]);
 
       // Only recruiter 2 is new — recruiter 1 is skipped (same round)
       expect(assignmentRepo.create).toHaveBeenCalledTimes(1);
@@ -346,7 +424,9 @@ describe('AdminAssignmentsService', () => {
       assignmentRepo.create.mockImplementation((data) => data as Assignment);
       assignmentRepo.save.mockResolvedValue({} as Assignment);
 
-      const result = await service.assignRecruiters([10], [1], 1);
+      const result = await service.assignRecruiters([
+        { appId: 10, recruiterIds: [1] },
+      ]);
 
       // Should create a new assignment for TECHNICAL_INTERVIEW (not skipped)
       expect(assignmentRepo.create).toHaveBeenCalledTimes(1);
@@ -364,7 +444,7 @@ describe('AdminAssignmentsService', () => {
         {
           id: 10,
           round: ApplicationRound.SCREENING,
-          roundStatus: RoundStatus.IN_PROGRESS,
+          roundStatus: RoundStatus.PENDING,
         },
       ] as Application[];
 
@@ -378,7 +458,9 @@ describe('AdminAssignmentsService', () => {
         } as unknown as Assignment,
       ]);
 
-      const result = await service.assignRecruiters([10], [1], 1);
+      const result = await service.assignRecruiters([
+        { appId: 10, recruiterIds: [1] },
+      ]);
 
       expect(assignmentRepo.create).not.toHaveBeenCalled();
       expect(result).toEqual({
@@ -403,7 +485,7 @@ describe('AdminAssignmentsService', () => {
       assignmentRepo.create.mockImplementation((d) => d as Assignment);
       assignmentRepo.save.mockResolvedValue({} as Assignment);
 
-      await service.assignRecruiters([10], [1], 1);
+      await service.assignRecruiters([{ appId: 10, recruiterIds: [1] }]);
 
       expect(assignmentRepo.delete).not.toHaveBeenCalled();
     });
@@ -424,7 +506,7 @@ describe('AdminAssignmentsService', () => {
       assignmentRepo.create.mockImplementation((d) => d as Assignment);
       assignmentRepo.save.mockResolvedValue({} as Assignment);
 
-      await service.assignRecruiters([10], [1], 1);
+      await service.assignRecruiters([{ appId: 10, recruiterIds: [1] }]);
 
       expect(applicationRepo.update).toHaveBeenCalledWith(
         { id: expect.anything() },
@@ -432,13 +514,13 @@ describe('AdminAssignmentsService', () => {
       );
     });
 
-    it('resets AWAITING_ADMIN to IN_PROGRESS when a new assignment is added', async () => {
-      const recruiters = [{ id: 2 }] as Recruiter[];
+    it('handles multiple recruiterIds per pair correctly', async () => {
+      const recruiters = [{ id: 1 }, { id: 2 }] as Recruiter[];
       const applications = [
         {
           id: 10,
           round: ApplicationRound.SCREENING,
-          roundStatus: RoundStatus.AWAITING_ADMIN,
+          roundStatus: RoundStatus.PENDING,
         },
       ] as Application[];
 
@@ -448,12 +530,13 @@ describe('AdminAssignmentsService', () => {
       assignmentRepo.create.mockImplementation((d) => d as Assignment);
       assignmentRepo.save.mockResolvedValue({} as Assignment);
 
-      await service.assignRecruiters([10], [2], 1);
+      const result = await service.assignRecruiters([
+        { appId: 10, recruiterIds: [1, 2] },
+      ]);
 
-      expect(applicationRepo.update).toHaveBeenCalledWith(
-        { id: expect.anything() },
-        { roundStatus: RoundStatus.IN_PROGRESS },
-      );
+      // Should create one assignment per recruiter
+      expect(assignmentRepo.create).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({ assigned: 2, skippedApps: [] });
     });
 
     it('does not update roundStatus when all pairs are duplicates (no new assignments)', async () => {
@@ -462,7 +545,7 @@ describe('AdminAssignmentsService', () => {
         {
           id: 10,
           round: ApplicationRound.SCREENING,
-          roundStatus: RoundStatus.AWAITING_ADMIN,
+          roundStatus: RoundStatus.PENDING,
         },
       ] as Application[];
 
@@ -476,7 +559,7 @@ describe('AdminAssignmentsService', () => {
         } as unknown as Assignment,
       ]);
 
-      await service.assignRecruiters([10], [1], 1);
+      await service.assignRecruiters([{ appId: 10, recruiterIds: [1] }]);
 
       expect(applicationRepo.update).not.toHaveBeenCalled();
     });
@@ -550,6 +633,7 @@ describe('AdminAssignmentsService', () => {
       screeningReviewRepo.find.mockResolvedValue([
         {
           assignment: { id: 10 },
+          status: 'submitted',
           scores: [
             {
               criteria: {

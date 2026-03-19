@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { Role } from '@api/dtos/enums';
+import { CompleteProfileModal } from './CompleteProfileModal';
 
 const ROLE_HIERARCHY: Record<Role, Role[]> = {
   [Role.ADMIN]: [Role.ADMIN],
@@ -13,6 +15,7 @@ interface AuthedAppProps {
 
 export const AuthedApp: React.FC<AuthedAppProps> = ({ allowedRoles }) => {
   const [isLoading, isError, user] = useAuth();
+  const [profileCompleted, setProfileCompleted] = useState(false);
 
   if (isLoading) {
     return <div>Loading...</div>;
@@ -39,7 +42,19 @@ export const AuthedApp: React.FC<AuthedAppProps> = ({ allowedRoles }) => {
     return <Navigate to="/login" replace />;
   }
 
-  return <Outlet />;
+  const profileIncomplete =
+    !profileCompleted && (user.firstName === null || user.lastName === null);
+
+  return (
+    <>
+      <Outlet />
+      <CompleteProfileModal
+        open={profileIncomplete}
+        user={user}
+        onComplete={() => setProfileCompleted(true)}
+      />
+    </>
+  );
 };
 
 export default AuthedApp;
