@@ -38,11 +38,15 @@ export function AdminReviewsSection({
                 label={
                   review.reviewStatus === ReviewStatus.SUBMITTED
                     ? 'Submitted'
+                    : review.reviewStatus === ReviewStatus.DRAFT
+                    ? 'Draft'
                     : 'Not Started'
                 }
                 color={
                   review.reviewStatus === ReviewStatus.SUBMITTED
                     ? 'success'
+                    : review.reviewStatus === ReviewStatus.DRAFT
+                    ? 'warning'
                     : 'default'
                 }
                 size="small"
@@ -75,6 +79,10 @@ export function AdminReviewsSection({
                   </Typography>
                 )}
               </>
+            ) : review.reviewStatus === ReviewStatus.DRAFT ? (
+              <Typography color="text.secondary">
+                Review in progress — not yet submitted.
+              </Typography>
             ) : (
               <Typography color="text.secondary">
                 No review submitted yet.

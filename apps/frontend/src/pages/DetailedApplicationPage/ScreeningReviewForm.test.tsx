@@ -79,9 +79,9 @@ describe('ScreeningReviewForm', () => {
     });
 
     it('returns error for out-of-range score', () => {
-      const errors = validateScores(baseCriteria, { 1: '4', 2: '-1' });
-      expect(errors[1]).toBe('Score must be between 0 and 3');
-      expect(errors[2]).toBe('Score must be between 0 and 3');
+      const errors = validateScores(baseCriteria, { 1: '4', 2: '0' });
+      expect(errors[1]).toBe('Score must be between 1 and 3');
+      expect(errors[2]).toBe('Score must be between 1 and 3');
     });
 
     it('returns no errors for valid scores', () => {
@@ -270,7 +270,23 @@ describe('ScreeningReviewForm', () => {
       fireEvent.change(inputs[0], { target: { value: '1' } });
       fireEvent.change(inputs[1], { target: { value: '2' } });
 
-      fireEvent.click(screen.getByRole('button', { name: /submit review/i }));
+      const submitButton = screen.getByRole('button', {
+        name: /submit review/i,
+      });
+      fireEvent.click(submitButton);
+
+      // Confirm dialog opens, find and click the submit button in the dialog
+      // Dialog button appears after clicking the form button
+      const dialogSubmitButton = await screen.findByRole('button', {
+        name: /submit review/i,
+        hidden: false,
+      });
+
+      // There should be 2 buttons with this name now (form + dialog), get all and click the second
+      const allSubmitButtons = screen.getAllByRole('button', {
+        name: /submit review/i,
+      });
+      fireEvent.click(allSubmitButtons[allSubmitButtons.length - 1]); // Dialog submit button
 
       await waitFor(() => {
         expect(mockSaveScreeningReview).toHaveBeenCalled();
@@ -293,7 +309,16 @@ describe('ScreeningReviewForm', () => {
         />,
       );
 
-      fireEvent.click(screen.getByRole('button', { name: /submit review/i }));
+      const submitButton = screen.getByRole('button', {
+        name: /submit review/i,
+      });
+      fireEvent.click(submitButton);
+
+      // Confirm dialog opens, find and click the submit button in the dialog
+      const allSubmitButtons = screen.getAllByRole('button', {
+        name: /submit review/i,
+      });
+      fireEvent.click(allSubmitButtons[allSubmitButtons.length - 1]); // Dialog submit button
 
       await waitFor(() => {
         expect(mockSubmitScreeningReview).toHaveBeenCalledWith(99);

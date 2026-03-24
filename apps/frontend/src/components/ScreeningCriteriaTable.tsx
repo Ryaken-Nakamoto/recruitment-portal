@@ -57,7 +57,7 @@ export const ScreeningCriteriaTable: React.FC<Props> = ({
                 <TextField
                   type="number"
                   size="small"
-                  inputProps={{ min: 0, max: 3, step: 'any' }}
+                  inputProps={{ min: 1, max: 3, step: 'any' }}
                   value={scores?.[c.id] ?? ''}
                   onChange={(e) => onScoreChange!(c.id, e.target.value)}
                   error={!!errors?.[c.id]}

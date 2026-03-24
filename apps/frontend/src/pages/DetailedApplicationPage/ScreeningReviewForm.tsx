@@ -1,8 +1,13 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import {
   Alert,
   Box,
   Button,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Paper,
   TextField,
   Typography,
@@ -25,8 +30,8 @@ export function validateScores(
       errors[c.id] = 'Must be a number';
     } else {
       const num = Number(val);
-      if (num < 0 || num > 3) {
-        errors[c.id] = 'Score must be between 0 and 3';
+      if (num < 1 || num > 3) {
+        errors[c.id] = 'Score must be between 1 and 3';
       }
     }
   }
@@ -36,9 +41,11 @@ export function validateScores(
 export function ScreeningReviewForm({
   assignmentDetail,
   onSubmitSuccess,
+  onSaveDraftSuccess,
 }: {
   assignmentDetail: AssignmentDetailResponse;
   onSubmitSuccess: () => void;
+  onSaveDraftSuccess?: () => void;
 }) {
   // Pre-populate scores from server when DRAFT
   const initialScores =
@@ -61,9 +68,12 @@ export function ScreeningReviewForm({
   const [reviewId, setReviewId] = useState<number | null>(
     assignmentDetail.reviewId ?? null,
   );
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const notesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDirtyRef = useRef(false);
 
   const handleScoreChange = (criteriaId: number, value: string) => {
+    isDirtyRef.current = true;
     setScores((prev) => ({ ...prev, [criteriaId]: value }));
     if (errors[criteriaId]) {
       setErrors((prev) => {
@@ -75,6 +85,7 @@ export function ScreeningReviewForm({
   };
 
   const handleNotesChange = (value: string) => {
+    isDirtyRef.current = true;
     setNotes(value);
     if (notesTimerRef.current) clearTimeout(notesTimerRef.current);
     notesTimerRef.current = setTimeout(() => {
@@ -109,6 +120,8 @@ export function ScreeningReviewForm({
       ]);
       setReviewId(result.id);
       setSaveDraftSuccess(true);
+      isDirtyRef.current = false;
+      onSaveDraftSuccess?.();
     } catch {
       setSaveDraftError('Failed to save draft. Please try again.');
     } finally {
@@ -116,16 +129,7 @@ export function ScreeningReviewForm({
     }
   };
 
-  const handleSubmit = async () => {
-    const validationErrors = validateScores(
-      assignmentDetail.rubricCriteria,
-      scores,
-    );
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      return;
-    }
-
+  const handleConfirmSubmit = async () => {
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -150,6 +154,7 @@ export function ScreeningReviewForm({
 
       // Then finalize the draft as submitted
       await apiClient.submitScreeningReview(currentReviewId);
+      isDirtyRef.current = false;
       onSubmitSuccess();
     } catch {
       setSubmitError('Failed to submit review. Please try again.');
@@ -157,6 +162,39 @@ export function ScreeningReviewForm({
       setSubmitting(false);
     }
   };
+
+  const handleSubmit = () => {
+    const validationErrors = validateScores(
+      assignmentDetail.rubricCriteria,
+      scores,
+    );
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
+    // Flush pending debounced notes save before opening dialog
+    if (notesTimerRef.current) clearTimeout(notesTimerRef.current);
+
+    setConfirmOpen(true);
+  };
+
+  // Sync form state when assignmentDetail prop changes, but only if form is not dirty
+  useEffect(() => {
+    if (!isDirtyRef.current) {
+      const newInitialScores =
+        assignmentDetail.reviewStatus === ReviewStatus.DRAFT
+          ? Object.fromEntries(
+              assignmentDetail.rubricCriteria
+                .filter((c) => c.score !== null)
+                .map((c) => [c.id, String(c.score)]),
+            )
+          : {};
+      setScores(newInitialScores);
+      setNotes(assignmentDetail.notes ?? '');
+      setReviewId(assignmentDetail.reviewId ?? null);
+    }
+  }, [assignmentDetail]);
 
   if (assignmentDetail.reviewStatus === ReviewStatus.SUBMITTED) {
     return (
@@ -234,11 +272,6 @@ export function ScreeningReviewForm({
           {saveDraftError}
         </Alert>
       )}
-      {submitError && (
-        <Alert severity="error" sx={{ mt: 2 }}>
-          {submitError}
-        </Alert>
-      )}
       <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
         <Button
           variant="outlined"
@@ -252,9 +285,61 @@ export function ScreeningReviewForm({
           onClick={handleSubmit}
           disabled={submitting || saving}
         >
-          {submitting ? 'Submitting...' : 'Submit Review'}
+          Submit Review
         </Button>
       </Box>
+
+      <Dialog
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle>Confirm Review Submission</DialogTitle>
+        <DialogContent>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            Please review your scores before submitting.
+          </Typography>
+          <ScreeningCriteriaTable
+            criteria={assignmentDetail.rubricCriteria}
+            scores={scores}
+          />
+          <Typography
+            variant="subtitle2"
+            fontWeight="bold"
+            sx={{ mt: 2, mb: 0.5 }}
+          >
+            Notes
+          </Typography>
+          {notes ? (
+            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+              {notes}
+            </Typography>
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              No notes.
+            </Typography>
+          )}
+          {submitError && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {submitError}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'space-between', px: 3, pb: 2 }}>
+          <Button onClick={() => setConfirmOpen(false)} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleConfirmSubmit}
+            disabled={submitting}
+            startIcon={submitting ? <CircularProgress size={16} /> : null}
+          >
+            {submitting ? 'Submitting...' : 'Submit Review'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 }

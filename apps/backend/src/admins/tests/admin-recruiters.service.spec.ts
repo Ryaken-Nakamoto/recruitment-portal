@@ -314,7 +314,10 @@ describe('AdminRecruitersService', () => {
 
       assignmentRepo.find.mockResolvedValue(assignments);
       screeningReviewRepo.find.mockResolvedValue([
-        { assignment: { id: 10 } } as unknown as ScreeningReview,
+        {
+          assignment: { id: 10 },
+          status: 'submitted',
+        } as unknown as ScreeningReview,
       ]);
       interviewReviewRepo.find.mockResolvedValue([]);
 

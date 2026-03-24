@@ -123,6 +123,11 @@ const DetailedApplicationPage: React.FC = () => {
                   queryKey: ['myAssignments'],
                 });
               }}
+              onSaveDraftSuccess={() => {
+                queryClient.invalidateQueries({
+                  queryKey: ['assignment-detail-by-app', id],
+                });
+              }}
             />
           )}
         </>

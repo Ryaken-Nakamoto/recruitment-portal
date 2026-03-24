@@ -5,7 +5,11 @@ import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 export class SesService {
   private readonly logger = new Logger(SesService.name);
   private readonly client = new SESv2Client({
-    region: process.env.REGION ?? 'us-east-1',
+    region: process.env.C4C_REGION ?? 'us-east-2',
+    credentials: {
+      accessKeyId: process.env.C4C_AWS_ACCESS_KEY ?? '',
+      secretAccessKey: process.env.C4C_AWS_SECRET_ACCESS_KEY ?? '',
+    },
   });
 
   async sendEmail(params: {

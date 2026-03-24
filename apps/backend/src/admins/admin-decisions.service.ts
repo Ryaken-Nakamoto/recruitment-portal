@@ -192,7 +192,7 @@ export class AdminDecisionsService {
     return {
       templateId: template.id,
       toEmail: applicant.email,
-      fromEmail: process.env.SENDER_EMAIL ?? '',
+      fromEmail: process.env.C4C_SENDER_EMAIL ?? '',
       subject: rendered.subject,
       body: rendered.body,
     };
@@ -213,7 +213,7 @@ export class AdminDecisionsService {
     }
 
     const applicant = application.applicant as Applicant;
-    const fromEmail = process.env.SENDER_EMAIL ?? '';
+    const fromEmail = process.env.C4C_SENDER_EMAIL ?? '';
 
     await this.sesService.sendEmail({
       to: applicant.email,
@@ -271,7 +271,7 @@ export class AdminDecisionsService {
     const failed: Array<{ id: number; applicantName: string; reason: string }> =
       [];
     const successfulApps: Application[] = [];
-    const fromEmail = process.env.SENDER_EMAIL ?? '';
+    const fromEmail = process.env.C4C_SENDER_EMAIL ?? '';
 
     for (const app of apps) {
       const applicant = app.applicant as Applicant;

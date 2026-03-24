@@ -81,7 +81,7 @@ export function AssignmentsSection({
     setRemoveTarget({
       assignmentId: a.assignmentId,
       recruiterName: a.recruiterName,
-      hasReview: a.reviewStatus === 'submitted',
+      hasReview: a.reviewStatus !== 'not_started',
     });
   };
 
@@ -154,10 +154,20 @@ export function AssignmentsSection({
               <Typography variant="body2">{a.recruiterName}</Typography>
               <Chip
                 label={
-                  a.reviewStatus === 'submitted' ? 'Submitted' : 'Not Started'
+                  a.reviewStatus === 'submitted'
+                    ? 'Submitted'
+                    : a.reviewStatus === 'draft'
+                    ? 'Draft'
+                    : 'Not Started'
                 }
                 size="small"
-                color={a.reviewStatus === 'submitted' ? 'success' : 'default'}
+                color={
+                  a.reviewStatus === 'submitted'
+                    ? 'success'
+                    : a.reviewStatus === 'draft'
+                    ? 'warning'
+                    : 'default'
+                }
               />
             </Box>
             {!readonly && (

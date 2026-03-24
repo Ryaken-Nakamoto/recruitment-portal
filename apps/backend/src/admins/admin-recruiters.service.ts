@@ -16,6 +16,7 @@ import { Assignment } from '../applications/entities/assignment.entity';
 import { ScreeningReview } from '../applications/entities/screening-review.entity';
 import { InterviewReview } from '../applications/entities/interview-review.entity';
 import { ApplicationRound } from '../applications/enums/application-round.enum';
+import { ScreeningReviewStatus } from '../applications/enums/screening-review-status.enum';
 
 @Injectable()
 export class AdminRecruitersService {
@@ -139,9 +140,13 @@ export class AdminRecruitersService {
       let reviewStatus: string;
 
       if (round === ApplicationRound.SCREENING) {
-        reviewStatus = screeningReviewByAssignmentId.has(a.id)
-          ? 'submitted'
-          : 'not_started';
+        const sr = screeningReviewByAssignmentId.get(a.id);
+        reviewStatus =
+          sr?.status === ScreeningReviewStatus.SUBMITTED
+            ? 'submitted'
+            : sr
+            ? 'draft'
+            : 'not_started';
       } else {
         const ir = interviewReviewByKey.get(`${a.application.id}:${round}`);
         reviewStatus = ir ? ir.status : 'not_started';
