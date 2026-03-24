@@ -15,6 +15,7 @@ import {
 import { ApplicationDetailDto } from './dto/application-detail.dto';
 import { S3Service } from '../util/s3/s3.service';
 import { RoundStatus } from './enums/round-status.enum';
+import { ScreeningReviewStatus } from './enums/screening-review-status.enum';
 
 @Injectable()
 export class ApplicationsService {
@@ -190,7 +191,10 @@ export class ApplicationsService {
     const submittedReviews =
       assignmentIds.length > 0
         ? await this.screeningReviewRepository.find({
-            where: { assignment: { id: In(assignmentIds) } },
+            where: {
+              assignment: { id: In(assignmentIds) },
+              status: ScreeningReviewStatus.SUBMITTED,
+            },
             relations: ['assignment', 'scores'],
           })
         : [];
