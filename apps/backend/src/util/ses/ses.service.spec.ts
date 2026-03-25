@@ -18,6 +18,9 @@ jest.mock('marked', () => ({
       return `<p>${html}</p>`;
     }),
   },
+  Renderer: jest.fn().mockImplementation(() => ({
+    list: jest.fn(),
+  })),
 }));
 
 describe('SesService', () => {
