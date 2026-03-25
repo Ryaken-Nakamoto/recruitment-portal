@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import {
   Alert,
   Box,
@@ -14,6 +14,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { marked } from 'marked';
 import apiClient from '@api/apiClient';
 import { EmailDto } from '@api/dtos/email.dto';
 
@@ -23,6 +24,8 @@ interface Props {
   onClose: () => void;
 }
 
+marked.use({ breaks: true });
+
 const EmailEditorDialog: React.FC<Props> = ({
   email,
   autoVariables,
@@ -30,9 +33,26 @@ const EmailEditorDialog: React.FC<Props> = ({
 }) => {
   const [subject, setSubject] = useState(email.subject);
   const [body, setBody] = useState(email.body);
+  const [htmlPreview, setHtmlPreview] = useState('');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const queryClient = useQueryClient();
+
+  // Initialize preview on mount
+  useEffect(() => {
+    const renderPreview = async () => {
+      const html = await marked.parse(email.body);
+      setHtmlPreview(html);
+    };
+    renderPreview();
+  }, [email.body]);
+
+  // Update HTML preview when body changes
+  const updatePreview = async (text: string) => {
+    setBody(text);
+    const html = await marked.parse(text);
+    setHtmlPreview(html);
+  };
 
   const { mutate: save, isPending } = useMutation({
     mutationFn: () => apiClient.updateEmail(email.id, { subject, body }),
@@ -42,7 +62,7 @@ const EmailEditorDialog: React.FC<Props> = ({
     },
   });
 
-  const insertVariable = (variable: string) => {
+  const insertVariable = async (variable: string) => {
     const textarea = bodyRef.current;
     if (!textarea) return;
     const token = `{{${variable}}}`;
@@ -50,17 +70,27 @@ const EmailEditorDialog: React.FC<Props> = ({
     const end = textarea.selectionEnd;
     const newBody = body.slice(0, start) + token + body.slice(end);
     setBody(newBody);
+    const html = await marked.parse(newBody);
+    setHtmlPreview(html as string);
     // Restore cursor after the inserted token
     requestAnimationFrame(() => {
       textarea.focus();
       const pos = start + token.length;
-      textarea.setSelectionRange(pos, pos);
+      if (textarea.setSelectionRange) {
+        textarea.setSelectionRange(pos, pos);
+      }
     });
   };
 
   return (
     <>
-      <Dialog open onClose={onClose} maxWidth="md" fullWidth>
+      <Dialog
+        open
+        onClose={onClose}
+        fullWidth
+        maxWidth={false}
+        sx={{ '& .MuiDialog-paper': { margin: 2 } }}
+      >
         <DialogTitle>{email.name}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} mt={1}>
@@ -99,18 +129,41 @@ const EmailEditorDialog: React.FC<Props> = ({
               fullWidth
             />
 
-            <TextField
-              label="Body"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              multiline
-              minRows={10}
-              fullWidth
-              inputProps={{
-                ref: bodyRef,
-                style: { fontFamily: 'monospace' },
-              }}
-            />
+            <Box display="flex" gap={2}>
+              <Box flex={1} minWidth={0}>
+                <TextField
+                  label="Body"
+                  value={body}
+                  onChange={(e) => updatePreview(e.target.value)}
+                  multiline
+                  minRows={10}
+                  fullWidth
+                  slotProps={{
+                    htmlInput: {
+                      ref: bodyRef,
+                      style: { fontFamily: 'monospace' },
+                    },
+                  }}
+                  helperText="Tip: Use **text** for bold"
+                />
+              </Box>
+              <Box
+                flex={1}
+                minWidth={0}
+                border="1px solid rgba(0, 0, 0, 0.23)"
+                borderRadius="4px"
+                p={2}
+                overflow="auto"
+                minHeight="250px"
+                sx={{
+                  backgroundColor: '#fafafa',
+                  fontFamily: 'Roboto, sans-serif',
+                  fontSize: '0.875rem',
+                  lineHeight: 1.43,
+                }}
+                dangerouslySetInnerHTML={{ __html: htmlPreview }}
+              />
+            </Box>
           </Stack>
         </DialogContent>
         <DialogActions>

@@ -7,6 +7,19 @@ jest.mock('@aws-sdk/client-sesv2', () => ({
   SendEmailCommand: jest.fn().mockImplementation((input) => ({ input })),
 }));
 
+jest.mock('marked', () => ({
+  marked: {
+    use: jest.fn(),
+    parse: jest.fn((markdown) => {
+      // Simple mock: wrap in <p> tags and convert **text** to <strong>
+      const html = markdown
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+      return `<p>${html}</p>`;
+    }),
+  },
+}));
+
 describe('SesService', () => {
   let service: SesService;
 
@@ -20,7 +33,7 @@ describe('SesService', () => {
     expect(service).toBeDefined();
   });
 
-  it('calls SESv2Client.send with correct payload', async () => {
+  it('calls SESv2Client.send with correct payload including HTML body', async () => {
     mockSend.mockResolvedValue({});
 
     await service.sendEmail({
@@ -38,10 +51,30 @@ describe('SesService', () => {
       Content: {
         Simple: {
           Subject: { Data: 'Hello Alice' },
-          Body: { Text: { Data: 'Welcome!' } },
+          Body: {
+            Text: { Data: 'Welcome!' },
+            Html: { Data: '<p>Welcome!</p>' },
+          },
         },
       },
     });
+  });
+
+  it('renders markdown bold as HTML strong tags', async () => {
+    mockSend.mockResolvedValue({});
+
+    await service.sendEmail({
+      to: 'alice@example.com',
+      from: 'team@c4c.com',
+      subject: 'Test Bold',
+      body: 'This is **bold** text',
+    });
+
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    const command = mockSend.mock.calls[0][0];
+    expect(command.input.Content.Simple.Body.Html.Data).toContain(
+      '<strong>bold</strong>',
+    );
   });
 
   it('throws when SESv2Client.send rejects', async () => {

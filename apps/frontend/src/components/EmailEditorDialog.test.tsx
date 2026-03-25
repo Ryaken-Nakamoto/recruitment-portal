@@ -12,6 +12,15 @@ vi.mock('@api/apiClient', () => ({
 
 const mockUpdateEmail = vi.mocked(apiClient.updateEmail);
 
+// Mock setSelectionRange for jsdom
+HTMLTextAreaElement.prototype.setSelectionRange = function setSelectionRange(
+  start: number,
+  end: number,
+) {
+  this.selectionStart = start;
+  this.selectionEnd = end;
+};
+
 const MOCK_EMAIL = {
   id: 1,
   name: 'screening-accepted',

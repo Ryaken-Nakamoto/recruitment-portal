@@ -8,5 +8,5 @@ export default {
   },
   moduleFileExtensions: ['ts', 'js', 'html'],
   coverageDirectory: '../../coverage/apps/backend',
-  transformIgnorePatterns: ['node_modules/(?!(uuid)/)'],
+  transformIgnorePatterns: ['node_modules/(?!(uuid|marked)/)'],
 };

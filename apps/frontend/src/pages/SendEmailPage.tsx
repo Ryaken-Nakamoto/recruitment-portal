@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
@@ -14,8 +14,11 @@ import {
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useQuery } from '@tanstack/react-query';
+import { marked } from 'marked';
 import apiClient from '@api/apiClient';
 import { RoundStatus } from '@api/dtos/enums';
+
+marked.use({ breaks: true });
 
 const SendEmailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -24,12 +27,22 @@ const SendEmailPage: React.FC = () => {
 
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  const [htmlPreview, setHtmlPreview] = useState('');
   const [initialized, setInitialized] = useState(false);
+  // This page always shows a personalized email (variables already substituted).
+  // Saving the template or inserting variables here would bake in the real name.
+  const isPersonalized = true;
   const [sending, setSending] = useState(false);
   const [saving, setSaving] = useState(false);
   const [snackbarMsg, setSnackbarMsg] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+
+  const updatePreview = async (text: string) => {
+    setBody(text);
+    const html = await marked.parse(text);
+    setHtmlPreview(html);
+  };
 
   const {
     data: preview,
@@ -42,13 +55,20 @@ const SendEmailPage: React.FC = () => {
   });
 
   // Initialize editable fields once preview loads
-  if (preview && !initialized) {
-    setSubject(preview.subject);
-    setBody(preview.body);
-    setInitialized(true);
-  }
+  useEffect(() => {
+    if (preview && !initialized) {
+      setSubject(preview.subject);
+      setBody(preview.body);
+      const renderPreview = async () => {
+        const html = await marked.parse(preview.body);
+        setHtmlPreview(html);
+      };
+      renderPreview();
+      setInitialized(true);
+    }
+  }, [preview, initialized]);
 
-  const insertVariable = (variable: string) => {
+  const insertVariable = async (variable: string) => {
     const textarea = bodyRef.current;
     if (!textarea) return;
     const token = `{{${variable}}}`;
@@ -56,10 +76,14 @@ const SendEmailPage: React.FC = () => {
     const end = textarea.selectionEnd;
     const newBody = body.slice(0, start) + token + body.slice(end);
     setBody(newBody);
+    const html = await marked.parse(newBody);
+    setHtmlPreview(html as string);
     requestAnimationFrame(() => {
       textarea.focus();
       const pos = start + token.length;
-      textarea.setSelectionRange(pos, pos);
+      if (textarea.setSelectionRange) {
+        textarea.setSelectionRange(pos, pos);
+      }
     });
   };
 
@@ -109,7 +133,7 @@ const SendEmailPage: React.FC = () => {
   }
 
   return (
-    <Box sx={{ p: 4, maxWidth: 800 }}>
+    <Box sx={{ p: 4, width: '100%' }}>
       <Box sx={{ mb: 2 }}>
         <IconButton
           onClick={() =>
@@ -151,8 +175,8 @@ const SendEmailPage: React.FC = () => {
         </Box>
 
         <Alert severity="info">
-          Only <code>{'{{firstName}}'}</code> is auto-filled. All other content
-          is hardcoded in the template.
+          Variables like <code>{'{{firstName}}'}</code> have already been filled
+          in. Edit the base template from the Emails page.
         </Alert>
 
         <Box>
@@ -167,7 +191,8 @@ const SendEmailPage: React.FC = () => {
           <Chip
             label="Insert firstName"
             onClick={() => insertVariable('firstName')}
-            clickable
+            clickable={!isPersonalized}
+            disabled={isPersonalized}
             size="small"
           />
         </Box>
@@ -179,18 +204,41 @@ const SendEmailPage: React.FC = () => {
           fullWidth
         />
 
-        <TextField
-          label="Body"
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          multiline
-          minRows={10}
-          fullWidth
-          inputProps={{
-            ref: bodyRef,
-            style: { fontFamily: 'monospace' },
-          }}
-        />
+        <Box display="flex" gap={2}>
+          <Box flex={1} minWidth={0}>
+            <TextField
+              label="Body"
+              value={body}
+              onChange={(e) => updatePreview(e.target.value)}
+              multiline
+              minRows={10}
+              fullWidth
+              slotProps={{
+                htmlInput: {
+                  ref: bodyRef,
+                  style: { fontFamily: 'monospace' },
+                },
+              }}
+              helperText="Tip: Use **text** for bold"
+            />
+          </Box>
+          <Box
+            flex={1}
+            minWidth={0}
+            border="1px solid rgba(0, 0, 0, 0.23)"
+            borderRadius="4px"
+            p={2}
+            overflow="auto"
+            minHeight="250px"
+            sx={{
+              backgroundColor: '#fafafa',
+              fontFamily: 'Roboto, sans-serif',
+              fontSize: '0.875rem',
+              lineHeight: 1.43,
+            }}
+            dangerouslySetInnerHTML={{ __html: htmlPreview }}
+          />
+        </Box>
 
         {sendError && <Alert severity="error">{sendError}</Alert>}
 
@@ -198,7 +246,7 @@ const SendEmailPage: React.FC = () => {
           <Button
             variant="outlined"
             onClick={handleSaveTemplate}
-            disabled={saving || sending}
+            disabled={saving || sending || isPersonalized}
           >
             {saving ? 'Saving…' : 'Save Template'}
           </Button>

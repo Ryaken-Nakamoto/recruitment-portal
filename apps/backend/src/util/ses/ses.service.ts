@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
+import { marked } from 'marked';
 
 @Injectable()
 export class SesService {
@@ -11,6 +12,18 @@ export class SesService {
       secretAccessKey: process.env.C4C_AWS_SECRET_ACCESS_KEY ?? '',
     },
   });
+
+  constructor() {
+    marked.use({ breaks: true });
+  }
+
+  /**
+   * Converts markdown to HTML for email bodies.
+   * Supports standard markdown syntax: **bold**, _italic_, links, lists, etc.
+   */
+  private markdownToHtml(markdown: string): string {
+    return marked.parse(markdown) as string;
+  }
 
   async sendEmail(params: {
     to: string;
@@ -35,6 +48,7 @@ export class SesService {
     }
 
     try {
+      const htmlBody = this.markdownToHtml(params.body);
       await this.client.send(
         new SendEmailCommand({
           FromEmailAddress: params.from,
@@ -42,7 +56,10 @@ export class SesService {
           Content: {
             Simple: {
               Subject: { Data: params.subject },
-              Body: { Text: { Data: params.body } },
+              Body: {
+                Text: { Data: params.body },
+                Html: { Data: htmlBody },
+              },
             },
           },
         }),
