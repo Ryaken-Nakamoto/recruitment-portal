@@ -1,15 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
+import * as nodemailer from 'nodemailer';
 import { marked } from 'marked';
-// this is deprecated,
+
 @Injectable()
-export class SesService {
-  private readonly logger = new Logger(SesService.name);
-  private readonly client = new SESv2Client({
-    region: process.env.C4C_REGION ?? 'us-east-2',
-    credentials: {
-      accessKeyId: process.env.C4C_AWS_ACCESS_KEY ?? '',
-      secretAccessKey: process.env.C4C_AWS_SECRET_ACCESS_KEY ?? '',
+export class NodemailerService {
+  private readonly logger = new Logger(NodemailerService.name);
+  private readonly transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD,
     },
   });
 
@@ -31,7 +31,7 @@ export class SesService {
     subject: string;
     body: string;
   }): Promise<void> {
-    if (process.env.NODE_ENV === 'local') {
+    if (process.env.NODE_ENV !== 'local') {
       this.logger.log(
         `[LOCAL MODE] Email would be sent to ${params.to} — subject: "${params.subject}"`,
       );
@@ -49,21 +49,13 @@ export class SesService {
 
     try {
       const htmlBody = this.markdownToHtml(params.body);
-      await this.client.send(
-        new SendEmailCommand({
-          FromEmailAddress: params.from,
-          Destination: { ToAddresses: [recipientEmail] },
-          Content: {
-            Simple: {
-              Subject: { Data: params.subject },
-              Body: {
-                Text: { Data: params.body },
-                Html: { Data: htmlBody },
-              },
-            },
-          },
-        }),
-      );
+      await this.transporter.sendMail({
+        from: params.from,
+        to: recipientEmail,
+        subject: params.subject,
+        text: params.body,
+        html: htmlBody,
+      });
       this.logger.log(
         `Email sent to ${recipientEmail} — subject: "${params.subject}"`,
       );

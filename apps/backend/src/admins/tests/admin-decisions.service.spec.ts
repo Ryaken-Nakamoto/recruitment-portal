@@ -7,7 +7,7 @@ import { AdminDecisionsService } from '../admin-decisions.service';
 import { Application } from '../../applications/entities/application.entity';
 import { Email } from '../../emails/entities/email.entity';
 import { SentEmail } from '../../emails/entities/sent-email.entity';
-import { SesService } from '../../util/ses/ses.service';
+import { NodemailerService } from '../../util/nodemailer/nodemailer.service';
 import { ApplicationRound } from '../../applications/enums/application-round.enum';
 import { RoundStatus } from '../../applications/enums/round-status.enum';
 import { FinalDecision } from '../../applications/enums/final-decision.enum';
@@ -18,7 +18,7 @@ describe('AdminDecisionsService', () => {
   let applicationRepo: jest.Mocked<Repository<Application>>;
   let emailRepo: jest.Mocked<Repository<Email>>;
   let sentEmailRepo: jest.Mocked<Repository<SentEmail>>;
-  let sesService: jest.Mocked<SesService>;
+  let sesService: jest.Mocked<NodemailerService>;
 
   beforeEach(async () => {
     const mockApplicationRepo = {
@@ -48,7 +48,7 @@ describe('AdminDecisionsService', () => {
         },
         { provide: getRepositoryToken(Email), useValue: mockEmailRepo },
         { provide: getRepositoryToken(SentEmail), useValue: mockSentEmailRepo },
-        { provide: SesService, useValue: mockSesService },
+        { provide: NodemailerService, useValue: mockSesService },
       ],
     }).compile();
 
@@ -56,7 +56,7 @@ describe('AdminDecisionsService', () => {
     applicationRepo = module.get(getRepositoryToken(Application));
     emailRepo = module.get(getRepositoryToken(Email));
     sentEmailRepo = module.get(getRepositoryToken(SentEmail));
-    sesService = module.get(SesService);
+    sesService = module.get(NodemailerService);
   });
 
   it('should be defined', () => {

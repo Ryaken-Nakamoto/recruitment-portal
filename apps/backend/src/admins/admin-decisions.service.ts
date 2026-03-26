@@ -21,7 +21,7 @@ import { EmailPreviewDto } from './dto/email-preview.dto';
 import { SendEmailDto } from './dto/send-email.dto';
 import { BulkSendEmailDto } from './dto/bulk-send-email.dto';
 import { BulkRevertDto } from './dto/bulk-revert.dto';
-import { SesService } from '../util/ses/ses.service';
+import { NodemailerService } from '../util/nodemailer/nodemailer.service';
 
 const ROUND_ORDER: ApplicationRound[] = [
   ApplicationRound.SCREENING,
@@ -70,7 +70,7 @@ export class AdminDecisionsService {
     private readonly emailRepo: Repository<Email>,
     @InjectRepository(SentEmail)
     private readonly sentEmailRepo: Repository<SentEmail>,
-    private readonly sesService: SesService,
+    private readonly sesService: NodemailerService,
   ) {}
 
   async bulkDecide(dto: BulkDecideDto): Promise<{
