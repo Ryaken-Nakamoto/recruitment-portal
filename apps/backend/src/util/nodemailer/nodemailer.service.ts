@@ -31,7 +31,7 @@ export class NodemailerService {
     subject: string;
     body: string;
   }): Promise<void> {
-    if (process.env.NODE_ENV !== 'local') {
+    if (process.env.NODE_ENV === 'local') {
       this.logger.log(
         `[LOCAL MODE] Email would be sent to ${params.to} — subject: "${params.subject}"`,
       );
