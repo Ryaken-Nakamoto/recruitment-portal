@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
-import { marked, Renderer } from 'marked';
+import { marked } from 'marked';
 
 @Injectable()
 export class SesService {
@@ -14,20 +14,7 @@ export class SesService {
   });
 
   constructor() {
-    // Custom renderer for email-safe HTML: add inline styles to list elements
-    // Email clients strip or ignore CSS from <head>, so inline styles are required
-    const renderer = new Renderer();
-
-    renderer.list = ({ items, ordered }) => {
-      const tag = ordered ? 'ol' : 'ul';
-      const listStyle = 'style="padding-left: 2em; margin: 1em 0;"';
-      const inner = items
-        .map((item) => `<li style="margin: 0.25em 0;">${item.text}</li>`)
-        .join('');
-      return `<${tag} ${listStyle}>${inner}</${tag}>\n`;
-    };
-
-    marked.use({ breaks: true, renderer });
+    marked.use({ breaks: true });
   }
 
   /**
