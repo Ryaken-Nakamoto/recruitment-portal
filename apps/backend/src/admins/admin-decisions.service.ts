@@ -271,7 +271,7 @@ export class AdminDecisionsService {
     const failed: Array<{ id: number; applicantName: string; reason: string }> =
       [];
     const successfulApps: Application[] = [];
-    const fromEmail = process.env.C4C_SENDER_EMAIL ?? '';
+    const fromEmail = process.env.GMAIL_USER ?? '';
 
     for (const app of apps) {
       const applicant = app.applicant as Applicant;
