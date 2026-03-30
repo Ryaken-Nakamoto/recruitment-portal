@@ -113,26 +113,36 @@ export function computePreview(
     }));
   }
 
-  // Exhaustive optimization: for each app, pick the subset with fewest repeated pairs
+  // Exhaustive optimization: for each app, pick the subset with fewest repeated pairs,
+  // breaking ties by preferring the subset with the lowest max individual recruiter load.
   const pairCount = new Map<string, number>();
+  const loadCount = new Map<number, number>();
   const result: PreviewRow[] = [];
 
   for (const app of selectedAppsList) {
     let bestSubset: number[] | null = null;
-    let bestScore = Infinity;
+    let bestPairScore = Infinity;
+    let bestLoadScore = Infinity;
 
     for (const subset of combinations(recruiterIds, perApp)) {
       // Score this subset by counting existing pairs
-      let score = 0;
+      let pairScore = 0;
       for (let i = 0; i < subset.length; i++) {
         for (let j = i + 1; j < subset.length; j++) {
           const pairKey = [subset[i], subset[j]].sort().join(':');
-          score += pairCount.get(pairKey) ?? 0;
+          pairScore += pairCount.get(pairKey) ?? 0;
         }
       }
 
-      if (score < bestScore) {
-        bestScore = score;
+      // Tiebreak by max individual load in this subset
+      const loadScore = Math.max(...subset.map((id) => loadCount.get(id) ?? 0));
+
+      if (
+        pairScore < bestPairScore ||
+        (pairScore === bestPairScore && loadScore < bestLoadScore)
+      ) {
+        bestPairScore = pairScore;
+        bestLoadScore = loadScore;
         bestSubset = subset;
       }
     }
@@ -144,6 +154,9 @@ export function computePreview(
           const pairKey = [bestSubset[i], bestSubset[j]].sort().join(':');
           pairCount.set(pairKey, (pairCount.get(pairKey) ?? 0) + 1);
         }
+      }
+      for (const id of bestSubset) {
+        loadCount.set(id, (loadCount.get(id) ?? 0) + 1);
       }
       result.push({
         appId: app.id,

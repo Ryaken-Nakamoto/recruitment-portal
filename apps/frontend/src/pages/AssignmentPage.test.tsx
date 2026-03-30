@@ -149,6 +149,23 @@ describe('AssignmentPage utilities', () => {
         });
       });
     });
+
+    it('distributes load evenly across recruiters with perApp=2', () => {
+      const apps = mockApps(6);
+      const recruiters = mockRecruiters(4); // ids 1,2,3,4
+
+      const result = computePreview(apps, recruiters, 2);
+
+      const loadCount = new Map<number, number>();
+      for (const row of result)
+        for (const id of row.recruiterSlots)
+          loadCount.set(id, (loadCount.get(id) ?? 0) + 1);
+
+      const loads = Array.from(loadCount.values());
+      const maxLoad = Math.max(...loads);
+      const minLoad = Math.min(...loads);
+      expect(maxLoad - minLoad).toBeLessThanOrEqual(1);
+    });
   });
 
   describe('detectRepeatedPairings', () => {
